@@ -1,0 +1,32 @@
+# datasets - too large for git
+ml/data/raw/
+ml/data/processed/
+ml/data/splits/
+
+# trained model binaries - download from Colab/Kaggle after training
+ml/exported_models/*.onnx
+ml/exported_models/*.pkl
+
+# mlflow artifacts
+ml/mlruns/
+ml/mlartifacts/
+
+# notebook checkpoints
+ml/notebooks/.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/
+*.egg-info/
+
+# docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
