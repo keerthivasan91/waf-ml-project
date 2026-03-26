@@ -17,7 +17,7 @@ Usage:
 """
 
 import argparse
-import torch
+import torch 
 import joblib
 import numpy as np
 import onnxruntime as ort
