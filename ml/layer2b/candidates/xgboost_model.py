@@ -45,7 +45,7 @@ class XGBoostModel:
         self.xgb    = None
         self._fitted = False
 
-    # ── Training ──────────────────────────────────────────────────────────────
+    # ── Updated Training Method ───────────────────────────────────────────────
 
     def train(self, X_train: np.ndarray, y_train: np.ndarray,
               X_val: np.ndarray, y_val: np.ndarray,
@@ -55,22 +55,30 @@ class XGBoostModel:
         Applies StandardScaler internally.
         """
         with mlflow.start_run(run_name=run_name, nested=True):
+            # Log parameters to MLflow
             mlflow.log_params(PARAMS)
 
+            # Preprocess data
             X_tr = self.scaler.fit_transform(X_train).astype(np.float32)
             X_v  = self.scaler.transform(X_val).astype(np.float32)
 
-            xgb_params = {k: v for k, v in PARAMS.items()
-                          if k != "early_stopping_rounds"}
+            # Extract parameters for the classifier
+            # Modern XGBoost: early_stopping_rounds goes in the constructor
+            xgb_params = {k: v for k, v in PARAMS.items()}
+            
             self.xgb = XGBClassifier(**xgb_params)
+
+            # Modern fit() call: early_stopping_rounds is removed from here
+            # as it is already defined in self.xgb via the PARAMS dict
             self.xgb.fit(
                 X_tr, y_train,
                 eval_set=[(X_v, y_val)],
-                early_stopping_rounds=PARAMS["early_stopping_rounds"],
-                verbose=100,
+                verbose=100
             )
+            
             self._fitted = True
 
+            # Evaluate validation performance
             val_preds = self.xgb.predict(X_v)
             val_f1    = f1_score(y_val, val_preds, average="macro", zero_division=0)
             val_acc   = accuracy_score(y_val, val_preds)

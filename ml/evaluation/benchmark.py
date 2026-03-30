@@ -3,16 +3,12 @@ ml/evaluation/benchmark.py
 
 ONNX latency benchmarking for both layers.
 Run from notebook 05 after exporting all models to ONNX.
-
-Usage:
-    from evaluation.benchmark import benchmark_onnx, benchmark_all, print_report
-    results = benchmark_all(exported_models_dir="../exported_models")
 """
 
 import numpy as np
 import time
+import json
 from pathlib import Path
-
 
 # ── Single model benchmark ────────────────────────────────────────────────────
 
@@ -25,27 +21,18 @@ def benchmark_onnx(
 ) -> dict:
     """
     Measure inference latency of one ONNX model.
-
-    Parameters
-    ----------
-    onnx_path    : path to .onnx file
-    input_name   : ONNX input tensor name ("features" or "token_ids")
-    dummy_input  : np.ndarray matching the model's expected input shape
-    n_warmup     : warmup runs (excluded from timing)
-    n_runs       : timed runs
-
-    Returns
-    -------
-    dict: mean_ms, p50_ms, p95_ms, p99_ms, min_ms, max_ms
     """
     import onnxruntime as ort
 
+    # Initialize session
     sess  = ort.InferenceSession(onnx_path)
     feed  = {input_name: dummy_input}
 
+    # Warmup
     for _ in range(n_warmup):
         sess.run(None, feed)
 
+    # Timed runs
     times = []
     for _ in range(n_runs):
         t0 = time.perf_counter()
@@ -69,11 +56,6 @@ def benchmark_onnx(
 def benchmark_all(exported_models_dir: str = "../exported_models") -> list:
     """
     Benchmark all .onnx files found in exported_models_dir.
-    Automatically infers input format from filename:
-      *l2a* or *autoencoder* or *isolation* → numeric features (1, 20) float32
-      *l2b* or *cnn* or *gru* or *xgb*      → token ids (1, 512) int32
-
-    Returns list of benchmark result dicts.
     """
     export_dir = Path(exported_models_dir)
     onnx_files = list(export_dir.glob("*.onnx"))
@@ -86,15 +68,19 @@ def benchmark_all(exported_models_dir: str = "../exported_models") -> list:
     for path in onnx_files:
         name = path.stem.lower()
 
-        # determine input format
+        # FIX 1: Improved Layer Detection Logic 
+        # Detects L2A based on keywords in filename
         if any(k in name for k in ["l2a", "autoencoder", "isolation", "iforest", "scaler"]):
             input_name  = "features"
-            dummy_input = np.random.randn(1, 25).astype(np.float32)
+            # FIX: Ensure dummy input matches the 25-feature schema
+            dummy_input = np.random.randn(1, 25).astype(np.float32) 
             target_ms   = 2.0
             layer       = "L2A"
         else:
+            # Assumes L2B (CNN, GRU, etc.)
             input_name  = "token_ids"
-            dummy_input = np.zeros((1, 512), dtype=np.int32)
+            # FIX 2: Change dtype from np.int32 to np.int64 to match PyTorch export
+            dummy_input = np.zeros((1, 512), dtype=np.int64) 
             target_ms   = 20.0
             layer       = "L2B"
 
@@ -146,6 +132,7 @@ def print_report(results: list) -> None:
 # ── Per-model convenience functions ───────────────────────────────────────────
 
 def benchmark_isolation_forest(path: str) -> dict:
+    # Use 25 features for consistency
     dummy = np.random.randn(1, 25).astype(np.float32)
     res   = benchmark_onnx(path, "features", dummy)
     res["pass"] = res["p99_ms"] <= 2.0
@@ -153,6 +140,7 @@ def benchmark_isolation_forest(path: str) -> dict:
 
 
 def benchmark_autoencoder(path: str) -> dict:
+    # Use 25 features for consistency
     dummy = np.random.randn(1, 25).astype(np.float32)
     res   = benchmark_onnx(path, "features", dummy)
     res["pass"] = res["p99_ms"] <= 2.0
@@ -160,6 +148,7 @@ def benchmark_autoencoder(path: str) -> dict:
 
 
 def benchmark_xgboost(path: str) -> dict:
+    # XGBoost uses numeric features (L2B baseline)
     dummy = np.random.randn(1, 25).astype(np.float32)
     res   = benchmark_onnx(path, "features", dummy)
     res["pass"] = res["p99_ms"] <= 20.0
@@ -167,14 +156,16 @@ def benchmark_xgboost(path: str) -> dict:
 
 
 def benchmark_cnn_1d(path: str) -> dict:
-    dummy = np.zeros((1, 512), dtype=np.int32)
+    # Use int64 for deep learning sequences
+    dummy = np.zeros((1, 512), dtype=np.int64)
     res   = benchmark_onnx(path, "token_ids", dummy)
     res["pass"] = res["p99_ms"] <= 20.0
     return res
 
 
 def benchmark_gru(path: str) -> dict:
-    dummy = np.zeros((1, 512), dtype=np.int32)
+    # Use int64 for deep learning sequences
+    dummy = np.zeros((1, 512), dtype=np.int64)
     res   = benchmark_onnx(path, "token_ids", dummy)
     res["pass"] = res["p99_ms"] <= 20.0
     return res
