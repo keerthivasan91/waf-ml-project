@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}WAF-ML — Logs{% endblock %}
+{% set active = "logs" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Request Logs</h1>
+  <div class="filter-row">
+    <a href="/dashboard/logs" class="filter-btn {% if not request.query_params.get('decision') %}active{% endif %}">All</a>
+    <a href="/dashboard/logs?decision=block" class="filter-btn {% if request.query_params.get('decision')=='block' %}active{% endif %}">Blocked</a>
+    <a href="/dashboard/logs?decision=log"   class="filter-btn {% if request.query_params.get('decision')=='log' %}active{% endif %}">Flagged</a>
+    <a href="/dashboard/logs?decision=allow" class="filter-btn {% if request.query_params.get('decision')=='allow' %}active{% endif %}">Allowed</div>
+  </div>
+</div>
+
+<section class="card">
+  <table class="data-table data-table--full">
+    <thead>
+      <tr>
+        <th>Time</th><th>IP</th><th>Method</th>
+        <th>URL</th><th>Label</th><th>Score</th><th>Layer</th><th>Latency</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr class="row--{{ log.decision }}">
+        <td class="mono nowrap">{{ log.timestamp.strftime('%H:%M:%S') if log.timestamp else '—' }}</td>
+        <td class="mono dim">{{ log.ip or '—' }}</td>
+        <td class="mono">{{ log.method }}</td>
+        <td class="url-cell" title="{{ log.get('url', '—') }}">{{ log.get('url', '—')[:60] }}{% if log.get('url', '—')|length > 60 %}…{% endif %}</td>
+        <td><span class="attack-badge attack-badge--{{ log.label.split('_')[0] }}">{{ log.label }}</span></td>
+        <td><span class="score-pill score-pill--{{ 'high' if log.score >= 70 else ('med' if log.score >= 30 else 'low') }}">{{ log.score }}</span></td>
+        <td class="mono dim">{{ log.layer }}</td>
+        <td class="mono dim">{{ log.latency_ms }}ms</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty-state">No logs found</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

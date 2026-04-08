@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+motor  # async MongoDB driver
+pydantic
+pydantic-settings
+onnxruntime
+numpy
+scipy
+jinja2
+python-multipart
+httpx       # async HTTP client for health checks
+python-dotenv
+slowapi        # rate limiting for FastAPI
+joblib
+scikit-learn

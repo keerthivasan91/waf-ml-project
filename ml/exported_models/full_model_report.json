@@ -1,0 +1,201 @@
+{
+  "layer2a": [
+    {
+      "model": "isolation_forest",
+      "auc": 0.9293,
+      "avg_precision": 0.9842,
+      "fpr": 0.032,
+      "tpr": 0.3701,
+      "tp": 1727,
+      "fp": 24,
+      "tn": 726,
+      "fn": 2939
+    },
+    {
+      "model": "shallow_autoencoder",
+      "auc": 0.9832,
+      "avg_precision": 0.9974,
+      "fpr": 0.0227,
+      "tpr": 0.9233,
+      "tp": 4308,
+      "fp": 17,
+      "tn": 733,
+      "fn": 358
+    }
+  ],
+  "layer2b": [
+    {
+      "model": "xgboost",
+      "macro_f1": 0.9561,
+      "accuracy": 0.9549,
+      "per_class_f1": {
+        "normal": 0.9534,
+        "sqli": 0.9917,
+        "xss": 0.9466,
+        "lfi": 0.9879,
+        "other_attack": 0.9009
+      },
+      "confusion_matrix": [
+        [
+          727,
+          0,
+          0,
+          0,
+          23
+        ],
+        [
+          0,
+          300,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          3,
+          186,
+          7,
+          3
+        ],
+        [
+          0,
+          0,
+          0,
+          449,
+          1
+        ],
+        [
+          48,
+          1,
+          7,
+          3,
+          391
+        ]
+      ]
+    },
+    {
+      "model": "cnn_1d",
+      "macro_f1": 0.9886,
+      "accuracy": 0.9893,
+      "per_class_f1": {
+        "normal": 0.9907,
+        "sqli": 0.9983,
+        "xss": 0.9796,
+        "lfi": 0.9956,
+        "other_attack": 0.9789
+      },
+      "confusion_matrix": [
+        [
+          744,
+          0,
+          0,
+          0,
+          6
+        ],
+        [
+          0,
+          300,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          192,
+          3,
+          4
+        ],
+        [
+          0,
+          0,
+          0,
+          450,
+          0
+        ],
+        [
+          8,
+          0,
+          0,
+          1,
+          441
+        ]
+      ]
+    },
+    {
+      "model": "gru",
+      "macro_f1": 0.9936,
+      "accuracy": 0.9944,
+      "per_class_f1": {
+        "normal": 0.996,
+        "sqli": 0.9967,
+        "xss": 0.9873,
+        "lfi": 0.9978,
+        "other_attack": 0.99
+      },
+      "confusion_matrix": [
+        [
+          749,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          300,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          195,
+          1,
+          2
+        ],
+        [
+          0,
+          0,
+          0,
+          450,
+          0
+        ],
+        [
+          5,
+          0,
+          0,
+          1,
+          444
+        ]
+      ]
+    }
+  ],
+  "latency": [
+    {
+      "model": "layer2a_best",
+      "mean_ms": 0.038,
+      "p50_ms": 0.023,
+      "p95_ms": 0.052,
+      "p99_ms": 0.158,
+      "min_ms": 0.015,
+      "max_ms": 1.297,
+      "pass": true,
+      "layer": "L2A",
+      "target_ms": 2.0
+    },
+    {
+      "model": "layer2b_best",
+      "mean_ms": 28.744,
+      "p50_ms": 25.035,
+      "p95_ms": 50.482,
+      "p99_ms": 64.036,
+      "min_ms": 18.048,
+      "max_ms": 73.804,
+      "pass": false,
+      "layer": "L2B",
+      "target_ms": 20.0
+    }
+  ]
+}

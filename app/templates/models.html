@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}WAF-ML — Models{% endblock %}
+{% set active = "models" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Model Registry</h1>
+  <button class="action-btn" onclick="reloadModels()">↺ Hot Reload</button>
+</div>
+
+<div class="two-col">
+  <!-- L2A Card -->
+  <section class="card">
+    <div class="card-header">
+      <h2>Layer 2A — Anomaly Detector</h2>
+      <span class="attack-badge attack-badge--normal">{{ info.layer2a.exists and 'loaded' or 'missing' }}</span>
+    </div>
+    <table class="data-table">
+      <tr><td class="dim">Model</td><td class="mono">Shallow Autoencoder</td></tr>
+      <tr><td class="dim">Input</td><td class="mono">{{ info.layer2a.input_name }}</td></tr>
+      <tr><td class="dim">Threshold</td><td class="mono">{{ info.layer2a.threshold | round(5) if info.layer2a.threshold else '—' }}</td></tr>
+      <tr><td class="dim">File size</td><td class="mono">{{ info.layer2a.size_kb }}KB</td></tr>
+      <tr><td class="dim">Modified</td><td class="mono">{{ info.layer2a.modified_human }}</td></tr>
+      <tr><td class="dim">Path</td><td class="mono dim" style="font-size:.7rem">{{ info.layer2a.path }}</td></tr>
+    </table>
+  </section>
+
+  <!-- L2B Card -->
+  <section class="card">
+    <div class="card-header">
+      <h2>Layer 2B — Deep Classifier</h2>
+      <span class="attack-badge attack-badge--normal">{{ info.layer2b.exists and 'loaded' or 'missing' }}</span>
+    </div>
+    <table class="data-table">
+      <tr><td class="dim">Model</td><td class="mono">Bidirectional GRU</td></tr>
+      <tr><td class="dim">Input</td><td class="mono">{{ info.layer2b.input_name }}</td></tr>
+      <tr><td class="dim">Uses tokens</td><td class="mono">{{ info.layer2b.uses_tokens }}</td></tr>
+      <tr><td class="dim">Classes</td><td class="mono">{{ info.layer2b.class_names | join(', ') }}</td></tr>
+      <tr><td class="dim">File size</td><td class="mono">{{ info.layer2b.size_kb }}KB</td></tr>
+      <tr><td class="dim">Modified</td><td class="mono">{{ info.layer2b.modified_human }}</td></tr>
+    </table>
+  </section>
+</div>
+
+<!-- Scaler card -->
+<section class="card">
+  <div class="card-header"><h2>Feature Scaler (L2A)</h2></div>
+  <table class="data-table">
+    <tr><td class="dim">Path</td><td class="mono dim">{{ info.scaler.path }}</td></tr>
+    <tr><td class="dim">Size</td><td class="mono">{{ info.scaler.size_kb }}KB</td></tr>
+    <tr><td class="dim">Exists</td><td class="mono">{{ info.scaler.exists }}</td></tr>
+  </table>
+</section>
+
+<!-- Reload result -->
+<div id="reload-result" style="display:none" class="reload-msg"></div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.action-btn {
+  padding:.35rem 1rem; border-radius:var(--radius);
+  background:var(--bg-hover); border:1px solid var(--border-hi);
+  color:var(--amber); font-family:var(--font-mono); font-size:.8rem;
+  cursor:pointer; transition:all .15s; margin-left:auto;
+}
+.action-btn:hover { border-color:var(--amber); }
+.reload-msg {
+  margin-top:1rem; padding:.75rem 1rem; border-radius:var(--radius);
+  font-family:var(--font-mono); font-size:.8rem;
+  border:1px solid var(--border);
+}
+.reload-msg.ok  { border-color:var(--green); color:var(--green); background:rgba(34,197,94,.08); }
+.reload-msg.err { border-color:var(--red);   color:var(--red);   background:rgba(239,68,68,.08); }
+</style>
+<script>
+async function reloadModels() {
+  const el = document.getElementById('reload-result');
+  el.style.display = 'block';
+  el.className = 'reload-msg';
+  el.textContent = 'Reloading…';
+  try {
+    const r = await fetch('/api/models/reload', { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+      el.classList.add('ok');
+      el.textContent = '✓ Models reloaded — threshold=' + d.l2a_threshold;
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      el.classList.add('err');
+      el.textContent = '✗ ' + JSON.stringify(d);
+    }
+  } catch (e) {
+    el.classList.add('err');
+    el.textContent = '✗ ' + e;
+  }
+}
+</script>
+{% endblock %}

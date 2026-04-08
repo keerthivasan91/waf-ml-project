@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}WAF-ML — Review Queue{% endblock %}
+{% set active = "feedback" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Review Queue</h1>
+  <span class="page-sub">{{ items|length }} borderline requests awaiting review</span>
+</div>
+
+<section class="card">
+  {% if items %}
+  {% for item in items %}
+  <div class="feedback-row" id="row-{{ item.request_id }}">
+    <div class="feedback-meta">
+      <span class="attack-badge attack-badge--{{ item.label.split('_')[0] }}">{{ item.label }}</span>
+      <span class="score-pill score-pill--med">score {{ item.score }}</span>
+      <span class="mono dim">L2A={{ item.l2a_score | round(4) }}</span>
+      <span class="mono dim">{{ item.timestamp.strftime('%Y-%m-%d %H:%M') if item.timestamp else '' }}</span>
+    </div>
+    <div class="feedback-url mono">{{ item.url[:120] }}</div>
+    <div class="feedback-actions">
+      {% for label in ['normal','sqli','xss','lfi','other_attack','false_positive'] %}
+      <button class="review-btn" onclick="submitReview('{{ item.request_id }}', '{{ label }}', false)">
+        {{ label }}
+      </button>
+      {% endfor %}
+      <button class="review-btn review-btn--poison"
+              onclick="submitReview('{{ item.request_id }}', 'false_positive', true)">
+        ⚠ Poisoning
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="empty-state">Queue is empty — no borderline requests to review.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function submitReview(requestId, label, isPoison) {
+  const r = await fetch(`/api/feedback/review/${requestId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({verified_label: label, is_poisoning: isPoison})
+  });
+  if (r.ok) {
+    const row = document.getElementById('row-' + requestId);
+    row.style.opacity = '0.3';
+    row.style.pointerEvents = 'none';
+    row.querySelector('.feedback-actions').innerHTML =
+      '<span class="mono dim">✓ Labelled as ' + label + '</span>';
+  }
+}
+</script>
+{% endblock %}

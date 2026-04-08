@@ -1,0 +1,24 @@
+{% macro log_row(log) %}
+<tr class="row--{{ log.decision }}" data-request-id="{{ log.request_id }}">
+  <td class="mono nowrap">
+    {{ log.timestamp.strftime('%H:%M:%S') if log.timestamp else '—' }}
+  </td>
+  <td class="mono dim">{{ log.ip or '—' }}</td>
+  <td class="mono">{{ log.method }}</td>
+  <td class="url-cell" title="{{ log.url }}">
+    {{ log.url[:60] }}{% if log.url|length > 60 %}…{% endif %}
+  </td>
+  <td>
+    <span class="attack-badge attack-badge--{{ log.label.split('_')[0] }}">
+      {{ log.label }}
+    </span>
+  </td>
+  <td>
+    <span class="score-pill score-pill--{{ 'high' if log.score >= 70 else ('med' if log.score >= 30 else 'low') }}">
+      {{ log.score }}
+    </span>
+  </td>
+  <td class="mono dim">{{ log.layer }}</td>
+  <td class="mono dim">{{ log.latency_ms }}ms</td>
+</tr>
+{% endmacro %}

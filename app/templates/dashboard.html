@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}WAF-ML — Overview{% endblock %}
+{% set active = "dashboard" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Threat Overview</h1>
+  <span class="page-sub">Last 24 hours · auto-refreshes every 30s</span>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Requests (24h)</div>
+    <div class="stat-value">{{ stats.total_24h | default(0) }}</div>
+  </div>
+  <div class="stat-card stat-card--danger">
+    <div class="stat-label">Blocked (24h)</div>
+    <div class="stat-value">{{ stats.blocked_24h | default(0) }}</div>
+    <div class="stat-sub">{{ stats.block_rate_24h | default(0) }}% block rate</div>
+  </div>
+  <div class="stat-card stat-card--ok">
+    <div class="stat-label">Allowed (24h)</div>
+    <div class="stat-value">{{ stats.allowed_24h | default(0) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Avg Latency (1h)</div>
+    <div class="stat-value">{{ stats.avg_latency_ms | default(0) }}<span class="stat-unit">ms</span></div>
+    <div class="stat-sub">P99 {{ stats.p99_latency_ms | default(0) }}ms</div>
+  </div>
+</div>
+
+<div class="two-col">
+  <section class="card">
+    <div class="card-header">
+      <h2>Attack Breakdown</h2>
+    </div>
+    <div class="breakdown-list">
+      {% set breakdown = stats.attack_breakdown | default({}) %}
+      {% for label, count in breakdown.items() %}
+      <div class="breakdown-row">
+        <span class="attack-badge attack-badge--{{ label.split('_')[0] }}">{{ label }}</span>
+        <div class="breakdown-bar-wrap">
+          {% set pct = (count / stats.blocked_24h * 100) | round(1) if stats.blocked_24h else 0 %}
+          <div class="breakdown-bar" style="width: {{ (pct | int) }}%;"></div>
+        </div>
+        <span class="breakdown-count">{{ count }}</span>
+      </div>
+      {% else %}
+      <p class="empty-state">No blocked threats in the last 24h</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>Recent Threats</h2>
+      <a href="/dashboard/logs?decision=block" class="card-link">View all →</a>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr><th>Time</th><th>Label</th><th>Score</th><th>Layer</th></tr>
+      </thead>
+      <tbody>
+        {% for t in threats %}
+        <tr>
+          <td class="mono">{{ t.timestamp.strftime('%H:%M:%S') if t.timestamp else '—' }}</td>
+          <td><span class="attack-badge attack-badge--{{ t.label.split('_')[0] }}">{{ t.label }}</span></td>
+          <td><span class="score-pill score-pill--{{ 'high' if t.score >= 70 else 'med' }}">{{ t.score }}</span></td>
+          <td class="mono dim">{{ t.layer }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty-state">No recent threats</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>setTimeout(() => location.reload(), 30000);</script>
+{% endblock %}

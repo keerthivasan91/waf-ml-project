@@ -1,0 +1,17 @@
+<nav class="nav">
+  <a href="/dashboard" class="nav-brand">
+    <span class="brand-icon">◈</span> WAF-ML
+  </a>
+  <div class="nav-links">
+    <a href="/dashboard"          class="nav-link {% if active=='dashboard' %}active{% endif %}">Overview</a>
+    <a href="/dashboard/logs"     class="nav-link {% if active=='logs' %}active{% endif %}">Live Logs</a>
+    <a href="/dashboard/threats"  class="nav-link {% if active=='threats' %}active{% endif %}">Threats</a>
+    <a href="/dashboard/feedback" class="nav-link {% if active=='feedback' %}active{% endif %}">Review</a>
+    <a href="/dashboard/models"   class="nav-link {% if active=='models' %}active{% endif %}">Models</a>
+    <a href="/api/docs" class="nav-link" target="_blank">API ↗</a>
+  </div>
+  <div class="nav-right">
+    <span class="nav-version">v{{ version }}</span>
+    <span class="status-dot"></span>
+  </div>
+</nav>

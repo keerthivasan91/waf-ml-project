@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    restart: unless-stopped
+
+  app:
+    build: ./app
+    env_file: .env
+    environment:
+      - ML_PATH=/app/ml
+    volumes:
+      - ./ml/exported_models:/app/models:ro   # ONNX + scaler + threshold
+      - ./ml:/app/ml:ro                        # feature_engineering package
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  mongodb:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: waf_db
+
+volumes:
+  mongo_data:
