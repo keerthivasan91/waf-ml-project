@@ -3,8 +3,8 @@
 # Hybrid Intelligent Web Application Firewall
 ### Zero-Day Attack Detection Using Multi-Layer Machine Learning Architecture
 
-**Cambridge Institute of Technology, Bengaluru**
-Department of CSE — IoT and Cyber Security including Blockchain
+**Cambridge Institute of Technology, Bengaluru**  
+Department of CSE — IoT and Cyber Security including Blockchain  
 Final Year B.E Project — 2025–26
 
 ---
@@ -21,163 +21,217 @@ Final Year B.E Project — 2025–26
 
 ---
 
-## What this project is
+## Table of Contents
+
+- [What This Project Is](#what-this-project-is)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Datasets](#datasets)
+- [Running Locally (Dev)](#running-locally-dev)
+- [Running with Docker](#running-with-docker)
+- [Dashboard Pages](#dashboard-pages)
+- [API Reference](#api-reference)
+- [Training the Models](#training-the-models)
+- [Evaluation Targets](#evaluation-targets)
+- [Known Issues & Caveats](#known-issues--caveats)
+- [Team Responsibilities](#team-responsibilities)
+
+---
+
+## What This Project Is
 
 Traditional WAFs rely on static signature-based rules that only detect known attacks. They fail silently against zero-day exploits, obfuscated payloads, and novel attack patterns.
 
-This project builds a **Hybrid Intelligent WAF** that sits as a reverse proxy in front of a web application and runs every incoming HTTP request through three detection layers:
+This project builds a **Hybrid Intelligent WAF** that sits as a reverse proxy in front of a web application and runs every incoming HTTP request through three detection layers. The system combines fast rule-based filtering with ML-based anomaly detection and deep classification.
 
-```
-Internet → Nginx → FastAPI WAF Middleware → Web Application
-                        │
-              ┌─────────┼──────────┐
-              ▼         ▼          ▼
-           Layer 1   Layer 2A   Layer 2B
-           Rules    Anomaly     Deep
-           Engine   Detector   Analyser
-              │         │          │
-              └─────────┴──────────┘
-                        │
-                 Threat Score Engine
-                  (0–100 scoring)
-                        │
-              ┌─────────┼──────────┐
-              ▼         ▼          ▼
-            Allow    Log+Alert   Block
-            (<30)    (30–70)     (>70)
-                        │
-               Server Health Monitor
-                        │
-               Feedback + Re-audit
-                        │
-               Adaptive Retraining
-```
-
-**The adaptive retraining loop is the core novel contribution** — neither base paper implemented this. When the protected server's health metrics spike (high error rate, latency, CPU), the system pulls the last 5 minutes of allowed traffic, flags borderline-scored requests for human review, and triggers a retraining cycle with anti-poisoning safeguards.
+**The adaptive retraining loop is the core novel contribution** — when the protected server's health metrics spike, the system pulls borderline-scored requests for human review and triggers a retraining cycle with anti-poisoning safeguards.
 
 ---
 
-## Base papers
+## Architecture
 
-| Paper | Authors | Key contribution used |
-|---|---|---|
-| *Adaptive Dual-Layer WAF (ADL-WAF)* | Sameh & Selim | Dual-layer ML architecture concept |
-| *Detecting Zero-Day Web Attacks with LSTM, GRU, and Stacked Autoencoders* | Babaey & Faragardi (Computers, MDPI 2025) | One-class autoencoder for zero-day detection; CSIC 2012 benchmark |
+```
+Internet → [Nginx] → [FastAPI WAF Middleware] → [Web Application]
+                              │
+                 ┌────────────┼────────────┐
+                 ▼            ▼            ▼
+              Layer 1      Layer 2A     Layer 2B
+           Rule Engine    Anomaly       Deep
+           (Regex/Rate)   Detector    Classifier
+                 │            │            │
+                 └────────────┴────────────┘
+                              │
+                     Threat Score Engine
+                          (0–100)
+                              │
+                 ┌────────────┼────────────┐
+                 ▼            ▼            ▼
+               Allow      Log+Alert      Block
+               (< 30)      (30–70)      (> 70)
+                              │
+                    Server Health Monitor
+                              │
+                    Feedback + Re-audit
+                              │
+                    Adaptive Retraining
+```
 
----
+### Layer 1 — Rule-Based Filter
+Regex patterns for SQLi, XSS, LFI, and OS command injection. Rate limiter at 100 req/min per IP. Drops known attacks in < 0.1ms before any ML runs.
 
-## Architecture layers
+### Layer 2A — Anomaly Detector
+One-class autoencoder trained **only on normal traffic**. Anything deviating from learned normal behaviour is flagged — this is what enables zero-day detection. Exported to ONNX for ~1–2ms inference.
 
-### Layer 1 — Classic filter
-Rule-based engine with regex patterns for SQLi, XSS, LFI, and OS command injection. Rate limiter (sliding window, 100 req/min per IP). Drops known attacks in < 0.1ms before any ML runs.
+**Threat score contribution:**
+```
+L2A contribution = min(50, reconstruction_error × 15)
+```
 
-### Layer 2A — Anomaly detector
-One-class model trained **only on normal traffic**. No attack labels required. Anything that deviates from learned normal behaviour is flagged as anomalous. This is what enables zero-day detection — the model has never seen the attack before but it doesn't look normal.
+### Layer 2B — Deep Classifier
+Bidirectional GRU that runs **only when L2A flags an anomaly**. Classifies into: `normal`, `sqli`, `xss`, `lfi`, `cmdi`, `other_attack`. Exported to ONNX for ~15–20ms inference.
 
-Two candidates trained and compared:
-- Isolation Forest (sklearn)
-- Shallow Autoencoder — `Input(20) → 64 → 32 → 16 → 32 → 64 → Output(20)` (PyTorch)
-
-Selection criterion: lowest FPR ≤ 5%, then highest TPR. Winner exported to ONNX.
-
-### Layer 2B — Deep analysis
-Multi-class classifier that only runs when Layer 2A flags an anomaly. Classifies the attack type: SQLi, XSS, LFI, or OS Command Injection. Provides confidence scores used by the threat scorer.
-
-Three candidates trained and compared:
-- XGBoost (numeric features, no GPU, baseline)
-- 1D CNN with multi-scale kernels [3, 5, 7] (character sequences)
-- Bidirectional GRU with Bahdanau attention (character sequences) — same architecture as base paper 2
-
-Selection criterion: highest macro F1 with per-class F1 ≥ 0.90 on all attack classes.
+**Threat score contribution:**
+```
+L2B contribution = attack_confidence × 50   (0 if class = normal)
+threat_score     = L2A_contrib + L2B_contrib   (capped at 100)
+```
 
 ### Threat Score Engine
-Combines L2A reconstruction error and L2B attack confidence into a 0–100 score:
-
-```
-L2A contribution = min(50, recon_error × 15)
-L2B contribution = attack_confidence × 50   (0 if class=normal)
-threat_score     = L2A_contrib + L2B_contrib
-```
-
-- Score < 30  → **Allow** (forward to web app)
-- Score 30–70 → **Log + Alert** (human review queue)
-- Score > 70  → **Block** (drop request, IP ban)
+| Score | Decision | Action |
+|---|---|---|
+| < 30 | `allow` | Forward to web app |
+| 30–70 | `log` | Log + add to human review queue |
+| > 70 | `block` | Drop request, return 403 |
 
 ### Server Health Monitor + Adaptive Retraining
-The protected web app posts health metrics (error rate, latency p99, CPU%) to `/api/health`. If any metric breaches a threshold, the system:
-1. Pulls the last 5 minutes of allowed traffic from MongoDB
-2. Flags requests with score > 15 (borderline-allowed) for re-audit
-3. Runs anti-poisoning checks (rate per IP, Layer 1 re-scan, score sanity)
-4. Queues verified samples for the next retraining cycle
+The monitor pings the protected app's `/health` endpoint every 60 seconds. If error rate exceeds 10%, borderline requests are pulled for re-audit. The retraining cycle includes anti-poisoning safeguards: per-IP caps, L1 re-scan, and minimum sample thresholds.
 
 ---
 
-## Tech stack
+## Tech Stack
 
-| Component | Technology | Why |
-|---|---|---|
-| Reverse proxy | Nginx | Industry standard, TLS termination |
-| Backend / WAF core | FastAPI (Python) | Async, Pydantic, native Jinja2 SSR |
-| Layer 1 | Python rule engine | Custom regex + rate limiter |
-| Layer 2A | Isolation Forest / Autoencoder → ONNX | One-class, ~1–2ms inference |
-| Layer 2B | XGBoost / CNN / GRU → ONNX | Multi-class, ~15–20ms inference |
-| Database | MongoDB (Motor async) | Document-shaped logs, flexible schema |
-| Frontend | HTML + Jinja2 SSR | No framework overhead |
-| Containers | Docker + Docker Compose | nginx + fastapi + mongodb |
-| Training | PyTorch · scikit-learn · XGBoost | Offline, Colab/Kaggle notebooks |
-| Model export | ONNX + ONNX Runtime | 3–5× faster than native PyTorch |
-| Experiment tracking | MLflow | Compare runs, log winner |
-| Datasets | CSIC 2010 · HttpParamsDataset · PayloadBox | Covers all 4 attack types |
+| Component | Technology |
+|---|---|
+| Reverse proxy | Nginx |
+| WAF backend | FastAPI + Uvicorn (async Python) |
+| Anomaly detector (L2A) | Shallow Autoencoder → ONNX Runtime |
+| Deep classifier (L2B) | Bidirectional GRU → ONNX Runtime |
+| Database | MongoDB (Motor async driver) |
+| Dashboard | Jinja2 SSR + Vanilla JS + Canvas charts |
+| Training | PyTorch · scikit-learn · XGBoost |
+| Experiment tracking | MLflow |
+| Containers | Docker + Docker Compose |
+| Datasets | CSIC 2010 · HttpParamsDataset · PayloadBox |
 
 ---
 
-## Project structure
+## Project Structure
 
 ```
 waf-ml-project/
 │
+├── .env                         # local environment overrides (gitignored)
+├── .env.example                 # template — copy this to .env
 ├── docker-compose.yml           # nginx + fastapi + mongodb
-├── .env.example                 # environment variable template
+├── dummy_app.py                 # lightweight protected app for local dev/testing
+├── test_traffic.py              # traffic simulation script
 ├── README.md
 │
 ├── nginx/
 │   ├── Dockerfile
 │   ├── nginx.conf
-│   └── conf.d/waf.conf          # proxy_pass → fastapi:8000
+│   └── conf.d/waf.conf
 │
-├── app/                         # FastAPI application
+├── app/                         # FastAPI WAF application
 │   ├── Dockerfile
 │   ├── requirements.txt
-│   ├── main.py                  # lifespan: load ONNX + connect DB
-│   ├── api/routes/              # traffic · logs · feedback · health · dashboard
-│   ├── core/                    # config · security · logging · exceptions
-│   ├── middleware/              # waf_middleware · rate_limiter · request_parser
-│   ├── models/schemas/          # request · threat · feedback · log
-│   ├── services/                # layer1 · layer2a · layer2b · scorer · health · retrain
-│   ├── db/                      # mongodb · collections · queries
-│   ├── templates/               # Jinja2 SSR dashboard pages
-│   └── static/                  # CSS + vanilla JS
+│   ├── main.py                  # lifespan: DB + model loading, router registration
+│   │
+│   ├── api/routes/
+│   │   ├── dashboard.py         # SSR pages: /dashboard, /logs, /threats, /feedback, /models
+│   │   ├── traffic.py           # POST /api/traffic/analyze
+│   │   ├── logs.py              # GET /api/logs/recent, /api/logs/threats
+│   │   ├── feedback.py          # GET/POST /api/feedback/...
+│   │   ├── health.py            # GET /api/health/, /api/health/stats
+│   │   └── models.py            # GET/POST /api/models/info, /reload, /history
+│   │
+│   ├── core/
+│   │   ├── config.py            # pydantic-settings, loads from .env
+│   │   ├── logging.py           # structured logging setup
+│   │   └── exceptions.py        # ModelNotLoadedError, DatabaseError handlers
+│   │
+│   ├── middleware/
+│   │   ├── waf_middleware.py    # main proxy interception + pipeline
+│   │   ├── rate_limiter.py      # slowapi limiter
+│   │   └── request_parser.py    # extracts url/method/headers/body/ip
+│   │
+│   ├── models/schemas/
+│   │   ├── request.py           # IncomingRequest
+│   │   ├── threat.py            # ThreatResult
+│   │   ├── log.py               # RequestLog
+│   │   └── feedback.py          # FeedbackItem
+│   │
+│   ├── services/
+│   │   ├── layer1_filter.py     # regex rules: sqli/xss/lfi/cmdi
+│   │   ├── layer2a_anomaly.py   # ONNX autoencoder inference
+│   │   ├── layer2b_deep.py      # ONNX GRU classifier inference
+│   │   ├── feature_extractor.py # runtime preprocessing (must match training)
+│   │   ├── threat_scorer.py     # 0–100 score + allow/log/block decision
+│   │   ├── health_monitor.py    # async health check loop
+│   │   ├── feedback_classifier.py # auto-labelling heuristics
+│   │   └── adaptive_retrain.py  # anti-poisoning retraining pipeline
+│   │
+│   ├── db/
+│   │   ├── mongodb.py           # Motor async client, index creation
+│   │   ├── collections.py       # typed collection accessors
+│   │   └── queries.py           # reusable async query functions
+│   │
+│   ├── templates/               # Jinja2 SSR dashboard templates
+│   │   ├── base.html
+│   │   ├── dashboard.html
+│   │   ├── logs.html
+│   │   ├── threats.html
+│   │   ├── feedback.html
+│   │   ├── models.html
+│   │   └── partials/
+│   │       ├── nav.html
+│   │       ├── threat_card.html
+│   │       └── log_row.html
+│   │
+│   └── static/
+│       ├── css/main.css         # industrial/terminal dark theme
+│       └── js/
+│           ├── main.js          # nav highlight, stat animations
+│           ├── charts.js        # Canvas 2D: sparkline, donut, latency bars
+│           └── live_logs.js     # polling /api/logs/recent every 5s
 │
-└── ml/                          # offline training — NOT in app container
+└── ml/                          # offline training — NOT deployed in app container
     ├── requirements_train.txt
-    ├── data/
-    │   ├── raw/                 # original dataset files (gitignored)
-    │   ├── processed/           # parsed CSVs, class weights
-    │   └── splits/              # train/val/test .npy arrays
-    ├── feature_engineering/     # extractor · tokenizer · normalizer
+    ├── feature_engineering/
+    │   ├── extractor.py         # extract_features(), to_vector()
+    │   ├── tokenizer.py         # CharTokenizer (max_len=512)
+    │   └── normalizer.py        # Normalizer wrapping StandardScaler
     ├── layer2a/
     │   ├── candidates/
     │   │   ├── isolation_forest.py
     │   │   └── autoencoder_shallow.py
-    │   ├── train.py · evaluate.py · export_onnx.py
+    │   ├── train.py
+    │   ├── evaluate.py
+    │   └── export_onnx.py
     ├── layer2b/
     │   ├── candidates/
     │   │   ├── xgboost_model.py
     │   │   ├── cnn_1d.py
     │   │   └── gru.py
-    │   ├── train.py · evaluate.py · export_onnx.py
-    ├── evaluation/              # metrics · compare_models · benchmark
-    ├── exported_models/         # *.onnx + scaler + threshold (gitignored)
+    │   ├── train.py
+    │   ├── evaluate.py
+    │   └── export_onnx.py
+    ├── exported_models/         # ← place trained files here (gitignored)
+    │   ├── layer2a_best.onnx
+    │   ├── layer2a_best_threshold.txt
+    │   ├── layer2b_best.onnx
+    │   └── scaler_l2a.pkl
     └── notebooks/
         ├── 01_data_exploration.ipynb
         ├── 02_feature_engineering.ipynb
@@ -191,125 +245,346 @@ waf-ml-project/
 
 ## Datasets
 
-| Dataset | Use | Records | Source |
-|---|---|---|---|
-| CSIC 2010 (Kaggle mirror) | L2A normal training + L2B full | 61,000 HTTP requests | `ispangler/csic-2010-web-application-attacks` |
-| HttpParamsDataset (Morzeux) | L2B primary — all 4 attack types | ~12,000 payloads | `github.com/Morzeux/HttpParamsDataset` |
-| PayloadBox SQLi list | L2B SQLi augmentation | 6,100+ payloads | `payloadbox/sql-injection-payload-list` |
-| PayloadBox XSS list | L2B XSS augmentation | 7,800+ payloads | `payloadbox/xss-payload-list` |
-| PayloadBox CMDi list | L2B CMDi augmentation | 3,700+ payloads | `payloadbox/command-injection-payload-list` |
-| PayloadBox LFI list | L2B LFI augmentation | 628+ payloads | `payloadbox/rfi-lfi-payload-list` |
-| CICIDS 2017 (BENIGN only) | L2A normal traffic pool | 2.8M+ records | `chethuhn/network-intrusion-dataset` |
-| WAF-A-MoLE | Zero-day adversarial testing only | Generative | `AvalZ/WAF-A-MoLE` |
-| OWASP ModSecurity 30-day | Adaptive retraining demo | 30-day production logs | `zenodo.org/records/11075382` |
+| Dataset | Use | Records |
+|---|---|---|
+| CSIC 2010 (Kaggle) | L2A normal training + L2B full | 61,000 HTTP requests |
+| HttpParamsDataset (Morzeux) | L2B primary — all 4 attack types | ~12,000 payloads |
+| PayloadBox SQLi list | L2B SQLi augmentation | 6,100+ payloads |
+| PayloadBox XSS list | L2B XSS augmentation | 7,800+ payloads |
+| PayloadBox CMDi list | L2B CMDi augmentation | 3,700+ payloads |
+| PayloadBox LFI list | L2B LFI augmentation | 628+ payloads |
+| CICIDS 2017 BENIGN | L2A normal traffic pool | 2.8M+ records |
 
-### Class imbalance handling
-
-Raw class distribution before balancing (approximate):
-
-| Class | Raw count | After cap (5,000) | Weight |
-|---|---|---|---|
-| normal | ~72,000 | 5,000 | 0.20 |
-| sqli | ~17,000 | 5,000 | 0.20 |
-| xss | ~8,300 | 5,000 | 0.20 |
-| lfi | ~918 | 918 | 1.09 |
-| other_attack | ~3,789 | 3,789 | 0.26 |
-
-Strategy: cap majority classes at 5,000 rows + compute class weights for `CrossEntropyLoss`. SMOTE is not used — interpolating between HTTP payloads produces syntactically invalid text that degrades model quality.
+**Class imbalance:** Cap majority classes at 5,000 rows + compute class weights for `CrossEntropyLoss`. SMOTE is not used — interpolating between HTTP payloads produces syntactically invalid text.
 
 ---
 
-## MongoDB collections
+## Running Locally (Dev)
 
-| Collection | Stores |
-|---|---|
-| `request_logs` | every request: URL, method, L1/L2A/L2B result, score, decision, latency |
-| `threat_events` | blocked/alerted requests with score breakdown and explanation |
-| `feedback_queue` | score 30–70 requests pending human review |
-| `model_versions` | trained model metadata: accuracy, FPR, export path, active flag |
-| `health_snapshots` | periodic server metrics: error rate, latency, CPU, memory |
-| `retrain_log` | history of retraining runs: trigger, samples used, delta accuracy |
+### Prerequisites
 
----
+- Python 3.11+
+- MongoDB running locally
+- Two terminal windows
 
-## Getting started
+### Step 1 — Clone and set up environment
 
-```bash
-# 1. Clone the repo
+```powershell
 git clone <repo-url>
 cd waf-ml-project
-
-# 2. Copy env template and edit if needed
-cp .env.example .env
-
-# 3. Place trained ONNX models (download from shared Drive after training)
-# ml/exported_models/layer2a_best.onnx
-# ml/exported_models/layer2a_best_threshold.txt
-# ml/exported_models/layer2b_best.onnx
-# ml/exported_models/scaler_l2a.pkl
-
-# 4. Start all services
-docker-compose up --build
-
-# Dashboard → http://localhost/dashboard
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # Linux/Mac
+pip install -r app/requirements.txt
 ```
 
-Training (run notebooks in order on Colab/Kaggle):
+### Step 2 — Create your .env file
 
+Copy the example and edit:
+
+```powershell
+copy .env.example .env
+```
+
+Your `.env` should contain:
+
+```env
+APP_NAME=WAF-ML
+APP_VERSION=1.0.0
+DEBUG=True
+
+MONGO_URI=mongodb://localhost:27017
+MONGO_DB=waf_dev
+
+L2A_ONNX_PATH=ml/exported_models/layer2a_best.onnx
+L2A_THRESHOLD_PATH=ml/exported_models/layer2a_best_threshold.txt
+L2B_ONNX_PATH=ml/exported_models/layer2b_best.onnx
+SCALER_PATH=ml/exported_models/scaler_l2a.pkl
+
+SCORE_LOG_THRESHOLD=30
+SCORE_BLOCK_THRESHOLD=70
+RATE_LIMIT_PER_MIN=100
+PROTECTED_APP_URL=http://127.0.0.1:5000
+HEALTH_CHECK_INTERVAL_SEC=60
+ERROR_RATE_THRESHOLD=0.10
+RETRAIN_MIN_SAMPLES=200
+```
+
+> **Important:** `MONGO_URI` must be `localhost` (not `mongodb`) when running outside Docker. `PROTECTED_APP_URL` must be `http://127.0.0.1:5000` for local dev.
+
+### Step 3 — Place trained model files
+
+Download the exported models and place them at:
+
+```
+ml/exported_models/
+├── layer2a_best.onnx
+├── layer2a_best_threshold.txt
+├── layer2b_best.onnx
+└── scaler_l2a.pkl
+```
+
+> **sklearn version:** The scaler was pickled with a specific sklearn version. Check the version used during training and match it:
+> ```powershell
+> pip install scikit-learn==1.6.1   # adjust to match training env
+> ```
+
+### Step 4 — Start MongoDB
+
+```powershell
+# Verify MongoDB is running
+mongosh --eval "db.adminCommand('ping')"
+# Should return: { ok: 1 }
+```
+
+If not running, start it via Windows Services or MongoDB Compass.
+
+### Step 5 — Start both servers
+
+**Terminal 1 — Protected app (dummy backend):**
+```powershell
+cd G:\path\to\waf-ml-project
+.venv\Scripts\activate
+uvicorn dummy_app:app --host 127.0.0.1 --port 5000
+```
+
+**Terminal 2 — WAF:**
+```powershell
+cd G:\path\to\waf-ml-project
+.venv\Scripts\activate
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Successful startup looks like:
+```
+INFO  | waf | Starting WAF-ML v1.0.0
+INFO  | waf | MongoDB connected → waf_dev
+INFO  | waf | L2A loaded | input=features | threshold=0.08141
+INFO  | waf | L2B loaded | input=token_ids | uses_tokens=True
+INFO  | waf | All ML models loaded successfully
+INFO  | waf | Health monitor started (interval=60s)
+INFO  | waf | WAF ready ◈
+```
+
+### Step 6 — Open the dashboard
+
+```
+http://127.0.0.1:8000/dashboard
+```
+
+### Step 7 — Simulate traffic (optional)
+
+```powershell
+python test_traffic.py
+```
+
+This sends normal, borderline, and attack requests through the WAF proxy at `http://127.0.0.1:8000/proxy/...`. Check the dashboard to see logs, threats, and review queue populate.
+
+---
+
+## Running with Docker
+
+### Prerequisites
+
+- Docker Desktop
+- Docker Compose
+
+### Step 1 — Set up environment
+
+```bash
+cp .env.example .env
+# Edit .env — leave MONGO_URI=mongodb://mongodb:27017 and PROTECTED_APP_URL=http://webapp:5000
+# These are the Docker service hostnames, not localhost
+```
+
+### Step 2 — Place model files
+
+```
+ml/exported_models/
+├── layer2a_best.onnx
+├── layer2a_best_threshold.txt
+├── layer2b_best.onnx
+└── scaler_l2a.pkl
+```
+
+### Step 3 — Build and start
+
+```bash
+docker-compose up --build
+```
+
+### Step 4 — Access
+
+| URL | Description |
+|---|---|
+| `http://localhost/dashboard` | Main dashboard (via Nginx) |
+| `http://localhost/proxy/...` | Proxied traffic (goes through WAF) |
+| `http://localhost:8000/api/docs` | FastAPI Swagger UI |
+
+### Useful Docker commands
+
+```bash
+# View WAF logs
+docker-compose logs -f fastapi
+
+# Restart just the WAF (after code changes)
+docker-compose restart fastapi
+
+# Stop everything
+docker-compose down
+
+# Stop and wipe the MongoDB volume
+docker-compose down -v
+```
+
+---
+
+## Dashboard Pages
+
+| URL | Page | Description |
+|---|---|---|
+| `/dashboard` | Overview | 24h stats, attack breakdown, recent threats |
+| `/dashboard/logs` | Live Logs | Real-time request log with filter by decision |
+| `/dashboard/threats` | Threats | All blocked/flagged events with attack type cards |
+| `/dashboard/feedback` | Review Queue | Human labelling interface for borderline requests |
+| `/dashboard/models` | Models | ONNX model metadata + hot reload button |
+| `/api/docs` | API Docs | Swagger UI for all REST endpoints |
+
+---
+
+## API Reference
+
+### Traffic Analysis
+
+```
+POST /api/traffic/analyze
+```
+Run a single request through the full WAF pipeline.
+
+```json
+{
+  "url": "/tienda1/publico/buscar.jsp?texto=test",
+  "method": "GET",
+  "headers": {},
+  "body": "",
+  "ip": "1.2.3.4"
+}
+```
+
+Response:
+```json
+{
+  "request_id": "uuid",
+  "decision": "allow",
+  "score": 12,
+  "label": "normal",
+  "layer": "L2A",
+  "l2a_score": 0.04231,
+  "latency_ms": 4.2
+}
+```
+
+### Logs
+
+```
+GET /api/logs/recent?limit=100&decision=block
+GET /api/logs/threats?limit=50
+```
+
+### Feedback / Review
+
+```
+GET  /api/feedback/pending?limit=100
+POST /api/feedback/review/{request_id}
+     Body: { "verified_label": "sqli", "is_poisoning": false }
+POST /api/feedback/trigger-retrain
+```
+
+Valid labels: `normal`, `sqli`, `xss`, `lfi`, `other_attack`, `false_positive`
+
+### Models
+
+```
+GET  /api/models/info
+POST /api/models/reload
+GET  /api/models/history
+```
+
+### Health
+
+```
+GET /api/health/
+GET /api/health/stats
+```
+
+---
+
+## Training the Models
+
+Training runs offline in Colab or Kaggle notebooks. Run notebooks in order:
+
+```
+01_data_exploration.ipynb    → understand dataset distribution
+02_feature_engineering.ipynb → build and validate feature pipeline
+03_layer2a_experiments.ipynb → train Isolation Forest + Autoencoder, pick winner
+04_layer2b_experiments.ipynb → train XGBoost + CNN + GRU, pick winner
+05_model_comparison.ipynb    → side-by-side metrics table
+06_end_to_end_eval.ipynb     → full pipeline evaluation vs base paper
+```
+
+Install training dependencies:
 ```bash
 cd ml
 pip install -r requirements_train.txt
-jupyter notebook
-# Run: 01 → 02 → 03 → 04 → 05 → 06
 ```
 
-Tests:
+After training, copy outputs to `ml/exported_models/`:
+- `layer2a_best.onnx`
+- `layer2a_best_threshold.txt` — single float, the reconstruction error cutoff
+- `layer2b_best.onnx`
+- `scaler_l2a.pkl` — StandardScaler fitted on normal training data
 
-```bash
-pytest tests/ -v
+> **Critical:** The sklearn version used to save `scaler_l2a.pkl` must match the version installed in the runtime environment, or you will get `InconsistentVersionWarning` and incorrect scaling. Pin the version in both environments.
+
+---
+
+## MongoDB Collections
+
+| Collection | Stores |
+|---|---|
+| `request_logs` | Every proxied request: URL, method, score, decision, latency |
+| `threat_events` | Blocked/logged requests with L2A score and L2B confidence |
+| `feedback_queue` | Score 30–70 requests pending human review |
+| `model_versions` | Hot reload events with threshold and model path |
+| `health_snapshots` | Periodic health check results from protected app |
+| `retrain_log` | History of retraining triggers with sample counts |
+
+Useful mongosh commands for debugging:
+
+```js
+// Connect
+mongosh waf_dev
+
+// Count decisions
+db.request_logs.countDocuments({decision: "block"})
+db.request_logs.countDocuments({decision: "log"})
+db.request_logs.countDocuments({decision: "allow"})
+
+// View pending review items
+db.feedback_queue.find({verified_label: null}).limit(5)
+
+// Clear bad documents missing url field
+db.threat_events.deleteMany({url: {$exists: false}})
+
+// Drop all logs to start fresh
+db.request_logs.drop()
+db.threat_events.drop()
+db.feedback_queue.drop()
 ```
 
 ---
 
-## Objectives and TODO
-
-### Phase 1 — Odd semester 2025 (Jul – Nov)
-
-- [ ] Literature review — both base papers + 5 related works
-- [ ] Download and preprocess CSIC 2010 dataset (notebook 01)
-- [ ] Build feature extraction pipeline — 20 numeric features (notebook 02)
-- [ ] Train Layer 2A candidates; export winner to ONNX (notebook 03)
-- [ ] Validate L2A: FPR < 5%, TPR > 95%, latency < 2ms
-- [ ] Implement Layer 1 rule engine with SQLi, XSS, LFI, CMDi rules
-- [ ] Submit synopsis document
-- [ ] **Phase-1 review demo**: Layer 1 + Layer 2A working end-to-end
-
-### Phase 2 — Even semester 2026 (Jan – May)
-
-- [ ] Train Layer 2B candidates; export winner to ONNX (notebook 04)
-- [ ] Validate L2B: macro F1 > 97%, per-class F1 > 90%, latency < 20ms
-- [ ] Wire full pipeline: Nginx → FastAPI → L1 → L2A → L2B → threat scorer
-- [ ] Set up Docker Compose with all three services
-- [ ] Implement MongoDB logging across all 6 collections
-- [ ] Build Threat Score Engine with 0–100 scoring and explanations
-- [ ] Add explainability output (GRU attention map or SHAP for XGBoost)
-- [ ] Implement Server Health Monitor
-- [ ] Build Feedback Classification with anti-poisoning safeguards
-- [ ] Implement Adaptive Retraining pipeline
-- [ ] Build SSR dashboard: live logs, threat timeline, model metrics, review queue
-- [ ] Run full evaluation vs base paper benchmarks on CSIC 2010
-- [ ] Write final project report
-- [ ] **Final viva demo**: live attack simulation against running system
-
-### Stretch goals
-
-- [ ] SHAP-based per-request explanation page in dashboard
-- [ ] Email/webhook alerting for score > 70 events
-- [ ] CICIDS 2018 dataset for broader attack coverage
-
----
-
-## Evaluation targets
+## Evaluation Targets
 
 | Metric | Target | Reference |
 |---|---|---|
@@ -323,28 +598,42 @@ pytest tests/ -v
 
 ---
 
-## Key design decisions
+## Known Issues & Caveats
 
-**Why one-class learning for L2A?** Training only on normal traffic means the model generalises to any deviation — including zero-day attacks never seen before. Core insight from base paper 2.
+**Model calibration mismatch**  
+If L2A reconstruction errors are very high (3–150 range) for normal traffic, the scaler sklearn version likely differs between training and runtime. Fix: pin `scikit-learn` to the same version used during training in both environments.
 
-**Why ONNX Runtime for inference?** 3–5× faster than native PyTorch. Both models load once at FastAPI startup as singleton `InferenceSession` objects — never reloaded per request. This is what makes sub-20ms latency achievable on CPU.
+**L1 false positives**  
+The `&&` and `||` CMDI regex patterns can match legitimate URL-encoded query strings. The current `layer1_filter.py` regexes are intentionally conservative — tighten them if you see too many false positives from normal traffic.
 
-**Why cap + class weights instead of SMOTE?** SMOTE interpolates between feature vectors. For numeric tabular data this is valid. For raw HTTP payloads and character sequences, interpolating between `' OR 1=1--` and `<script>alert(1)</script>` produces syntactically invalid strings that confuse the model rather than helping it generalise.
+**feedback_queue population**  
+Items only appear in the review queue when a request scores 30–70 (`decision=log`). With a miscalibrated model that scores everything high, all requests become `block` and nothing reaches the review queue. Fix the scaler first.
 
-**Why MongoDB over PostgreSQL for logs?** Request log documents are heterogeneous — different attacks have different fields, the feature vector changes as models evolve, and you want fast appends under high traffic. A document store fits better than a rigid relational schema.
+**dummy_app must be running**  
+When running locally, `dummy_app.py` must be started separately in its own terminal before sending test traffic. The WAF will return 502 Bad Gateway for any allowed request if it can't reach port 5000.
 
-**Why train 3 candidates for L2B?** XGBoost gives a strong classical baseline with built-in feature importance (explainability). CNN captures local n-gram patterns. GRU captures long-range dependencies. The comparison table — accuracy, F1, latency — becomes a key result in the report.
+**`--reload` watches all files**  
+Uvicorn's `--reload` flag watches the entire project directory. Saving `test_traffic.py` will restart the WAF server mid-test. Either disable `--reload` during traffic testing, or add `--reload-exclude test_traffic.py` to the uvicorn command.
 
 ---
 
-## Team responsibilities
+## Team Responsibilities
 
 | Member | Primary area |
 |---|---|
-| Keerthi Vasan P | FastAPI backend, middleware pipeline, MongoDB integration |
+| Keerthi Vasan P | FastAPI backend, middleware pipeline, MongoDB integration, deployment |
 | Darshan Gowda C | Layer 2A training, feature engineering, ONNX export |
 | Santhosh V | Layer 2B training, threat scorer, explainability |
 | Srujan H R | Nginx config, Docker setup, dashboard UI, testing |
+
+---
+
+## Base Papers
+
+| Paper | Authors | Contribution used |
+|---|---|---|
+| *Adaptive Dual-Layer WAF (ADL-WAF)* | Sameh & Selim | Dual-layer ML architecture concept |
+| *Detecting Zero-Day Web Attacks with LSTM, GRU, and Stacked Autoencoders* | Babaey & Faragardi (Computers, MDPI 2025) | One-class autoencoder for zero-day detection; CSIC 2012 benchmark |
 
 ---
 
