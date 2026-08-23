@@ -1,4 +1,9 @@
-"""app/services/layer2b_deep.py — ONNX deep classifier (Layer 2B)"""
+"""app/services/layer2b_deep.py — ONNX deep classifier (Layer 2B)
+
+Bidirectional GRU with Bahdanau attention. 5-class taxonomy per the CRC —
+`cmdi` is folded into `other_attack`, matching training (see NB06/NB07/NB08
+CLASS_NAMES and the base-paper taxonomy). MUST match training exactly.
+"""
 import numpy as np
 import onnxruntime as ort
 import scipy.special
@@ -8,13 +13,12 @@ from app.core.logging import logger
 _sess = None
 _in_name = None
 
-# MUST match training exactly
+# MUST match training exactly (CRC 5-class taxonomy — cmdi folded into other_attack)
 CLASS_NAMES = [
     "normal",
     "sqli",
     "xss",
     "lfi",
-    "cmdi",
     "other_attack",
 ]
 

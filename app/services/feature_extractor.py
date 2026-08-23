@@ -62,8 +62,9 @@ def extract(request: dict) -> tuple[np.ndarray, np.ndarray]:
     Returns
     -------
     fvec_scaled : np.ndarray
-        Shape (1, 25), dtype float32
-        EXACT same normalized feature vector used in training
+        Shape (1, 29), dtype float32
+        EXACT same normalized feature vector used in training (post
+        domain-stripping + JSON/GraphQL structural features — CRC)
 
     token_ids : np.ndarray
         Shape (1, 512), dtype int64
