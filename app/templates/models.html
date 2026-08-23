@@ -18,7 +18,8 @@
     <table class="data-table">
       <tr><td class="dim">Model</td><td class="mono">Shallow Autoencoder</td></tr>
       <tr><td class="dim">Input</td><td class="mono">{{ info.layer2a.input_name }}</td></tr>
-      <tr><td class="dim">Threshold</td><td class="mono">{{ info.layer2a.threshold | round(5) if info.layer2a.threshold else '—' }}</td></tr>
+      <tr><td class="dim">Own Threshold</td><td class="mono">{{ info.layer2a.own_threshold | round(6) if info.layer2a.own_threshold else '—' }}</td></tr>
+      <tr><td class="dim">Escalation Threshold</td><td class="mono">{{ info.layer2a.escalation_threshold | round(8) if info.layer2a.escalation_threshold else '—' }}</td></tr>
       <tr><td class="dim">File size</td><td class="mono">{{ info.layer2a.size_kb }}KB</td></tr>
       <tr><td class="dim">Modified</td><td class="mono">{{ info.layer2a.modified_human }}</td></tr>
       <tr><td class="dim">Path</td><td class="mono dim" style="font-size:.7rem">{{ info.layer2a.path }}</td></tr>
