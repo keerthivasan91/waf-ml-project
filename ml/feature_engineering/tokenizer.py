@@ -21,6 +21,7 @@ Used in
 
 import numpy as np
 from typing import Union
+from .extractor import strip_to_path_query 
 
 # ── Vocabulary ────────────────────────────────────────────────────────────────
 # Covers every character commonly seen in HTTP request URLs and bodies.
@@ -78,7 +79,7 @@ class CharTokenizer:
         """
         text = (
             request.get("method", "GET") + " "
-            + request.get("url", "") + " "
+            + strip_to_path_query(request.get("url", "")) + " "
             + request.get("body", "")
         )
         return self.encode(text, pad=True)
@@ -93,7 +94,7 @@ class CharTokenizer:
         """Encode list of request dicts → (N, max_len) int32 array."""
         texts = [
             r.get("method", "GET") + " "
-            + r.get("url", "") + " "
+            + strip_to_path_query(r.get("url", "")) + " "   # CHANGED
             + r.get("body", "")
             for r in requests
         ]

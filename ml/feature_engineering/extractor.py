@@ -75,25 +75,100 @@ _CONTENT_TYPES = {
     "text/html": 6,
 }
 
+# ── Domain stripping (CRC / R2 Critical Issue 4) ──────────────────────────────
+# Source datasets mix full URLs (CSIC: "http://localhost:8080/tienda1/...")
+# with path-only payloads (HttpParams/PayloadBox: "/?q=..."). Left unstripped,
+# url_length / path_depth / special_char_ratio etc. pick up a spurious
+# "has a real host" vs "starts with /" signal that has nothing to do with
+# attack content — and won't generalize past whatever host format the
+# training data happened to use.
+#
+# Stripping to path + query (+ fragment) removes that scheme/host noise.
+# Applied identically here AND in CharTokenizer's request-encoding path —
+# same normalisation must run at training time and inference time, or the
+# model sees a different input distribution live than it was trained on.
+
+def strip_to_path_query(url: str) -> str:
+    """
+    Reduce a URL to path + query (+ fragment) only, dropping scheme/host/port.
+
+        "http://localhost:8080/tienda1/publico/anadir.jsp?id=2"
+            -> "/tienda1/publico/anadir.jsp?id=2"
+        "/?q=<script>alert(1)</script>"
+            -> "/?q=<script>alert(1)</script>"   (already path-only, unchanged)
+    """
+    if not url:
+        return url
+    parsed = urlparse(url)
+    stripped = parsed.path or "/"
+    if parsed.query:
+        stripped += "?" + parsed.query
+    if parsed.fragment:
+        stripped += "#" + parsed.fragment
+    return stripped
+
+
+# ── JSON / GraphQL structural helpers (CRC Priority A) ────────────────────────
+# Deliberately NOT a full JSON parser call on untrusted attack payloads —
+# malformed/broken JSON is itself part of the attack surface (JSON-injection
+# probing, GraphQL introspection abuse), so json.loads() would just throw on
+# exactly the rows we most want a feature for. Brace/bracket counting and
+# regex heuristics degrade gracefully on malformed input instead of raising.
+
+_JSON_KEY_RE = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"\s*:')
+_GRAPHQL_OP_RE = re.compile(r"\b(query|mutation|subscription)\b\s*[\w]*\s*\{", re.IGNORECASE)
+_GRAPHQL_INTROSPECTION_RE = re.compile(r"__schema|__typename|__type\b")
+
+
+def _brace_nesting_depth(s: str) -> int:
+    """Max nesting depth of {}/[] — works on malformed JSON/GraphQL alike."""
+    depth = 0
+    max_depth = 0
+    for c in s:
+        if c in "{[":
+            depth += 1
+            max_depth = max(max_depth, depth)
+        elif c in "}]":
+            depth = max(0, depth - 1)
+    return max_depth
+
+
+def _looks_like_json(body: str, content_type: str) -> bool:
+    if "json" in content_type:
+        return True
+    b = body.strip()
+    return b.startswith("{") or b.startswith("[")
+
+
+def _looks_like_graphql(body: str, content_type: str) -> bool:
+    if "graphql" in content_type:
+        return True
+    if _GRAPHQL_OP_RE.search(body):
+        return True
+    if _GRAPHQL_INTROSPECTION_RE.search(body):
+        return True
+    return False
+
+
 # ── Feature names — ORDER IS FIXED, never reorder ────────────────────────────
 
 FEATURE_NAMES = [
     # URL structure
     "url_length",              # 0
     "path_depth",              # 1
-    "param_count",             # 2
+    "param_count",              # 2
     "param_value_total_len",   # 3
     "fragment_length",         # 4
 
     # Character ratios (computed on full URL)
-    "special_char_ratio",      # 5  <>'"();=&%+
+    "special_char_ratio",      # 5
     "digit_ratio",             # 6
     "uppercase_ratio",         # 7
-    "encoded_char_ratio",      # 8  %XX sequences
+    "encoded_char_ratio",      # 8
 
     # Body
     "payload_length",          # 9
-    "payload_entropy",         # 10  Shannon entropy
+    "payload_entropy",         # 10
 
     # Attack flags (binary)
     "has_sqli",                # 11
@@ -108,15 +183,21 @@ FEATURE_NAMES = [
     "osci_match_count",        # 18
 
     # Request metadata
-    "http_method",             # 19  encoded int
-    "content_type",            # 20  encoded int
+    "http_method",             # 19
+    "content_type",            # 20
     "header_count",            # 21
-    "has_user_agent",          # 22  binary
-    "has_referer",             # 23  binary
+    "has_user_agent",          # 22
+    "has_referer",             # 23
     "cookie_length",           # 24
+
+    # CHANGED (CRC): JSON/GraphQL body features — appended at the END only.
+    "is_json_body",            # 25  binary
+    "is_graphql_operation",    # 26  binary
+    "body_nesting_depth",      # 27  max {}/[] depth in body
+    "body_key_count",          # 28  heuristic count of "key": pairs
 ]
 
-INPUT_DIM = len(FEATURE_NAMES)   # 25
+INPUT_DIM = len(FEATURE_NAMES)   # 29 — was 25
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -156,14 +237,14 @@ def extract_features(request: dict) -> dict:
     Returns
     -------
     dict[str, float] with keys matching FEATURE_NAMES (order preserved).
-    All values are Python floats.
     """
-    url     = request.get("url", "")
+    raw_url = request.get("url", "")
+    url     = strip_to_path_query(raw_url)   # CHANGED: domain stripped before any feature use
     method  = request.get("method", "GET").upper().strip()
     headers = request.get("headers", {})
     body    = request.get("body", "")
 
-    parsed   = urlparse(url)
+    parsed   = urlparse(url)      # url is already path+query+fragment only now
     params   = parse_qs(parsed.query)
     path     = parsed.path
     fragment = parsed.fragment
@@ -189,6 +270,12 @@ def extract_features(request: dict) -> dict:
     cookie_len     = len(headers_lower.get("cookie", ""))
     ct_raw         = headers_lower.get("content-type", "").split(";")[0].strip().lower()
     content_type_i = _CONTENT_TYPES.get(ct_raw, len(_CONTENT_TYPES))
+
+    # CHANGED (CRC): JSON/GraphQL structural features
+    is_json    = _looks_like_json(body, ct_raw)
+    is_graphql = _looks_like_graphql(body, ct_raw)
+    nest_depth = _brace_nesting_depth(body)
+    key_count  = len(_JSON_KEY_RE.findall(body))
 
     return {
         "url_length":            float(url_len),
@@ -216,6 +303,12 @@ def extract_features(request: dict) -> dict:
         "has_user_agent":        float("user-agent" in headers_lower),
         "has_referer":           float("referer" in headers_lower),
         "cookie_length":         float(cookie_len),
+
+        # CHANGED (CRC): appended at end, matches FEATURE_NAMES order
+        "is_json_body":          float(is_json),
+        "is_graphql_operation":  float(is_graphql),
+        "body_nesting_depth":    float(nest_depth),
+        "body_key_count":        float(key_count),
     }
 
 
