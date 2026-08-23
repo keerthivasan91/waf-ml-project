@@ -12,4 +12,5 @@ httpx       # async HTTP client for health checks
 python-dotenv
 slowapi        # rate limiting for FastAPI
 joblib
-scikit-learn
+scikit-learn==1.6.1  # pinned to match version scaler_l2a.pkl was fit with
+requests

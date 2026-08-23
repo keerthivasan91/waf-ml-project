@@ -71,8 +71,9 @@ async def models_page(request: Request):
     info = {
         "layer2a": {
             **file_meta(settings.L2A_ONNX_PATH),
-            "threshold": l2a._threshold,
-            "input_name": l2a._in_name,
+            "own_threshold":        l2a._threshold,
+            "escalation_threshold": settings.ESCALATION_THRESHOLD,
+            "input_name":           l2a._in_name,
         },
         "layer2b": {
             **file_meta(settings.L2B_ONNX_PATH),
