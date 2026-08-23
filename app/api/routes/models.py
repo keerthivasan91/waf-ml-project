@@ -38,13 +38,14 @@ async def model_info():
     return {
         "layer2a": {
             **file_meta(settings.L2A_ONNX_PATH),
-            "threshold": l2a._threshold,
-            "input_name": l2a._in_name,
+            "own_threshold":        l2a._threshold,
+            "escalation_threshold": settings.ESCALATION_THRESHOLD,
+            "input_name":           l2a._in_name,
         },
         "layer2b": {
             **file_meta(settings.L2B_ONNX_PATH),
             "input_name":   l2b._in_name,
-            "uses_tokens":  l2b._uses_tokens,
+            "uses_tokens":  l2b.USES_TOKENS,
             "class_names":  l2b.CLASS_NAMES,
         },
         "scaler": file_meta(settings.SCALER_PATH),
@@ -85,7 +86,7 @@ async def reload_models():
     return {
         "status":      "reloaded",
         "l2a_threshold": l2a._threshold,
-        "l2b_uses_tokens": l2b._uses_tokens,
+        "l2b_uses_tokens": l2b.USES_TOKENS,
     }
 
 

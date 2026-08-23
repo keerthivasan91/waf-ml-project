@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     SCORE_LOG_THRESHOLD:   int = 30
     SCORE_BLOCK_THRESHOLD: int = 70
     RATE_LIMIT_PER_MIN:    int = 100
-    PROTECTED_APP_URL:     str = "http://webapp:5000"
+    PROTECTED_APP_URL: str = "http://127.0.0.1:5000"    
 
     HEALTH_CHECK_INTERVAL_SEC: int   = 60
     ERROR_RATE_THRESHOLD:      float = 0.10
