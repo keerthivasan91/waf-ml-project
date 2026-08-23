@@ -8,3 +8,4 @@ def feedback_queue()  -> AsyncIOMotorCollection: return get_db()["feedback_queue
 def model_versions()  -> AsyncIOMotorCollection: return get_db()["model_versions"]
 def health_snapshots()-> AsyncIOMotorCollection: return get_db()["health_snapshots"]
 def retrain_log()     -> AsyncIOMotorCollection: return get_db()["retrain_log"]
+def health_audit_log()-> AsyncIOMotorCollection: return get_db()["health_audit_log"]
