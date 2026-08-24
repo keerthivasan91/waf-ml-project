@@ -53,16 +53,20 @@ class WAFMiddleware(BaseHTTPMiddleware):
         # Do not intercept WAF/dashboard/internal endpoints.
         # These should continue to be handled by the WAF application itself.
         bypass_paths = (
+            "/api/traffic",
+            "/api/health",
+            "/api/logs",
+            "/api/feedback",
+            "/api/models",
+            "/api/docs",
+            "/api/redoc",
             "/dashboard",
             "/static",
-            "/health",
-            "/docs",
-            "/redoc",
             "/openapi.json",
             "/favicon.ico",
         )
 
-        if request.url.path.startswith(bypass_paths):
+        if request.url.path == "/" or request.url.path.startswith(bypass_paths):
             return await call_next(request)
 
         t0 = time.perf_counter()
