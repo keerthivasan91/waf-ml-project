@@ -170,19 +170,28 @@ http://127.0.0.1:8000/dashboard/models
 
 The dashboard and its static resources must remain WAF-internal.
 
-The ML middleware should bypass:
+The ML middleware should bypass its own internal routes specifically —
+**not** a blanket `/api` bypass, since the protected application's own
+business routes also live under `/api/*` (see `dummy_app.py`):
 
 ```text
+/api/traffic
+/api/health
+/api/logs
+/api/feedback
+/api/models
+/api/docs
+/api/redoc
 /dashboard
 /static
-/health
-/docs
-/redoc
 /openapi.json
 /favicon.ico
 ```
+Plus an exact match on bare `/` (the WAF's own service-info route).
 
-Only protected application traffic should enter L1 → L2A → L2B.
+Only protected application traffic (`/api/products`, `/api/orders`,
+`/api/cart`, `/api/files/*`, `/api/system/*`, `/api/admin/*`,
+`/api/contact`, `/api/users/*`, etc.) should enter L1 → L2A → L2B.
 
 ---
 
@@ -393,16 +402,14 @@ if detected by L1 or the ML layers.
 ## Attack 4 — Authentication SQL Injection
 
 ```text
-http://127.0.0.1:8000/api/login?username=admin%27--%26password=test
+POST http://127.0.0.1:8000/api/users/login
+Params: username=admin'--&password=test
 ```
 
-Use this only if the current dummy application exposes `/api/login`.
-
-If the endpoint does not exist, use the existing search endpoint instead:
-
-```text
-http://127.0.0.1:8000/api/products/search?q=admin%27-- 
-```
+`dummy_app.py`'s login route is `/api/users/login` and takes `POST`
+with `username`/`password` as query params (not `/api/login`, and not
+a GET request — see `test_traffic.py`'s login examples for the exact
+`requests.post(..., params=...)` call).
 
 ---
 
