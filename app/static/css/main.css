@@ -1,28 +1,28 @@
-/* WAF-ML Dashboard — Industrial/Terminal aesthetic
+/* WAF-ML Dashboard — Industrial/Terminal aesthetic (LIGHT MODE)
    Font: Syne (headings) + JetBrains Mono (data/code)
-   Palette: near-black bg, amber accent, danger red, ok green
+   Palette: off-white bg, amber accent, danger red, ok green
 */
 
 :root {
-  --bg:        #0d0e11;
-  --bg-card:   #131519;
-  --bg-hover:  #1a1d23;
-  --border:    #232730;
-  --border-hi: #2e3340;
+  --bg:        #f7f7f5;
+  --bg-card:   #ffffff;
+  --bg-hover:  #eef0f3;
+  --border:    #e0e2e7;
+  --border-hi: #cbced6;
 
-  --text:      #e8eaf0;
+  --text:      #14161a;
   --text-dim:  #6b7280;
-  --text-faint:#383d47;
+  --text-faint:#9ca3af;
 
-  --amber:     #f59e0b;
-  --amber-dim: #92600a;
-  --red:       #ef4444;
-  --red-dim:   #7f1d1d;
-  --green:     #22c55e;
-  --green-dim: #14532d;
-  --blue:      #3b82f6;
-  --purple:    #a855f7;
-  --teal:      #14b8a6;
+  --amber:     #b45309;
+  --amber-dim: #fcd9a6;
+  --red:       #dc2626;
+  --red-dim:   #fecaca;
+  --green:     #16a34a;
+  --green-dim: #bbf7d0;
+  --blue:      #2563eb;
+  --purple:    #9333ea;
+  --teal:      #0d9488;
 
   --font-head: 'Syne', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
@@ -53,6 +53,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 1px 2px rgba(20,22,26,.04);
 }
 
 .nav-brand {
@@ -139,6 +140,7 @@ body {
   padding: 1.25rem 1.5rem;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(20,22,26,.05);
 }
 .stat-card::before {
   content: '';
@@ -184,6 +186,7 @@ body {
   border-radius: var(--radius);
   padding: 1.25rem;
   margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(20,22,26,.05);
 }
 .card-header {
   display: flex;
@@ -248,13 +251,13 @@ body {
   color: var(--text-dim);
   border: 1px solid var(--border);
 }
-.attack-badge--sqli   { background: rgba(239,68,68,.15);  color: #f87171; border-color: var(--red-dim); }
-.attack-badge--xss    { background: rgba(168,85,247,.15); color: #c084fc; border-color: #581c87; }
-.attack-badge--lfi    { background: rgba(249,115,22,.15); color: #fb923c; border-color: #7c2d12; }
-.attack-badge--other  { background: rgba(234,179,8,.15);  color: #facc15; border-color: var(--amber-dim); }
-.attack-badge--cmdi   { background: rgba(234,179,8,.15);  color: #facc15; border-color: var(--amber-dim); }
-.attack-badge--normal { background: rgba(34,197,94,.15);  color: #4ade80; border-color: var(--green-dim); }
-.attack-badge--false  { background: rgba(59,130,246,.15); color: #60a5fa; border-color: #1e3a5f; }
+.attack-badge--sqli   { background: #fef2f2; color: #b91c1c; border-color: var(--red-dim); }
+.attack-badge--xss    { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
+.attack-badge--lfi    { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.attack-badge--other  { background: #fffbeb; color: #a16207; border-color: var(--amber-dim); }
+.attack-badge--cmdi   { background: #fffbeb; color: #a16207; border-color: var(--amber-dim); }
+.attack-badge--normal { background: #f0fdf4; color: #15803d; border-color: var(--green-dim); }
+.attack-badge--false  { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 
 .score-pill {
   display: inline-block;
@@ -265,9 +268,9 @@ body {
   min-width: 36px;
   text-align: center;
 }
-.score-pill--high { background: rgba(239,68,68,.2);  color: #f87171; }
-.score-pill--med  { background: rgba(245,158,11,.2); color: var(--amber); }
-.score-pill--low  { background: rgba(34,197,94,.15); color: #4ade80; }
+.score-pill--high { background: #fef2f2; color: #b91c1c; }
+.score-pill--med  { background: #fffbeb; color: var(--amber); }
+.score-pill--low  { background: #f0fdf4; color: #15803d; }
 
 /* ── Breakdown list ───────────────────────────────────────────────────────── */
 .breakdown-list { display: flex; flex-direction: column; gap: .6rem; }
@@ -329,6 +332,7 @@ body {
   margin-bottom: .75rem;
   background: var(--bg-card);
   transition: opacity .3s;
+  box-shadow: 0 1px 3px rgba(20,22,26,.05);
 }
 .feedback-meta {
   display: flex;
@@ -361,7 +365,7 @@ body {
 }
 .review-btn:hover { border-color: var(--green); color: var(--green); }
 .review-btn--poison { border-color: var(--red-dim); color: var(--red); }
-.review-btn--poison:hover { background: rgba(239,68,68,.1); }
+.review-btn--poison:hover { background: rgba(239,68,68,.08); }
 
 /* ── Utilities ───────────────────────────────────────────────────────────── */
 .mono       { font-family: var(--font-mono); }
