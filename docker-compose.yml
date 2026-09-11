@@ -6,7 +6,8 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
     restart: unless-stopped
@@ -15,18 +16,36 @@ services:
     build: ./app
     env_file: .env
     environment:
-      - ML_PATH=/app/ml
+      ML_PATH: /app/ml
+      PROTECTED_APP_URL: http://protected-app:5000
     volumes:
-      - ./ml/exported_models:/app/models:ro   # ONNX + scaler + threshold
-      - ./ml:/app/ml:ro                        # feature_engineering package
+      - ./ml:/app/ml:ro
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
+      protected-app:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 20s
+
+  protected-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.protected
+    expose:
+      - "5000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   mongodb:
     image: mongo:7
@@ -35,6 +54,12 @@ services:
     restart: unless-stopped
     environment:
       MONGO_INITDB_DATABASE: waf_db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   mongo_data:
