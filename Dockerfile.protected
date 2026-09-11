@@ -2,7 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi uvicorn[standard] curl-cffi 2>/dev/null || true
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir fastapi "uvicorn[standard]"
 
 COPY dummy_app.py /app/dummy_app.py
 
