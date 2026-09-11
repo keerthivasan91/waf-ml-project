@@ -5,25 +5,42 @@ from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
-from app.core.config    import settings
-from app.core.logging   import setup_logging, logger
-from app.core.exceptions import (ModelNotLoadedError, DatabaseError,
-                              model_not_loaded_handler, database_error_handler)
-from app.db.mongodb     import connect_db, close_db
+from app.core.config import settings
+from app.core.logging import setup_logging, logger
+from app.core.exceptions import (
+    ModelNotLoadedError,
+    DatabaseError,
+    model_not_loaded_handler,
+    database_error_handler,
+)
+from app.db.mongodb import connect_db, close_db
 from app.middleware.waf_middleware import WAFMiddleware
-from app.middleware.rate_limiter   import limiter
+from app.middleware.rate_limiter import limiter
 
-import app.services.layer1_filter as l1
 import app.services.layer2a_anomaly as l2a
 import app.services.layer2b_deep as l2b
 from app.services.health_monitor import start_monitor, stop_monitor
 
-from app.api.routes.traffic   import router as traffic_router
-from app.api.routes.logs      import router as logs_router
-from app.api.routes.feedback  import router as feedback_router
-from app.api.routes.health    import router as health_router
+from app.api.routes.traffic import router as traffic_router
+from app.api.routes.logs import router as logs_router
+from app.api.routes.feedback import router as feedback_router
+from app.api.routes.health import router as health_router
 from app.api.routes.dashboard import router as dashboard_router
-from app.api.routes.models    import router as models_router
+from app.api.routes.models import router as models_router
+
+
+def _validate_runtime_artifacts() -> None:
+    """Fail startup if the exact artifacts required by inference are missing."""
+    required = {
+        "L2A model": settings.L2A_ONNX_PATH,
+        "L2A threshold": settings.L2A_THRESHOLD_PATH,
+        "L2B model": settings.L2B_ONNX_PATH,
+        "feature scaler": settings.SCALER_PATH,
+    }
+    missing = [f"{name}: {path}" for name, path in required.items() if not path.exists()]
+    if missing:
+        raise ModelNotLoadedError("Missing runtime artifacts: " + "; ".join(missing))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,15 +50,18 @@ async def lifespan(app: FastAPI):
     try:
         await connect_db()
     except Exception as e:
-        raise DatabaseError(str(e))
+        raise DatabaseError(str(e)) from e
 
     try:
+        _validate_runtime_artifacts()
         l2a.load()
         l2b.load()
-        logger.info("All ML models loaded successfully")
-    except FileNotFoundError as e:
-        logger.error("Model file missing: %s", e)
-        raise ModelNotLoadedError(str(e))
+        logger.info("All ML models and preprocessing artifacts loaded successfully")
+    except ModelNotLoadedError:
+        raise
+    except Exception as e:
+        logger.exception("ML runtime initialization failed")
+        raise ModelNotLoadedError(str(e)) from e
 
     await start_monitor()
     logger.info("WAF ready ◈")
@@ -65,17 +85,22 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(WAFMiddleware)
 app.add_exception_handler(ModelNotLoadedError, model_not_loaded_handler)
-app.add_exception_handler(DatabaseError,       database_error_handler)
+app.add_exception_handler(DatabaseError, database_error_handler)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-app.include_router(traffic_router)   # already has prefix="/api/traffic"
-app.include_router(health_router)    # already has prefix="/api/health"
-app.include_router(logs_router)      # already has prefix="/api/logs"
-app.include_router(feedback_router)  # already has prefix="/api/feedback"
-app.include_router(models_router)    # already has prefix="/api/models"
-app.include_router(dashboard_router) # serves /dashboard, /dashboard/logs, /dashboard/feedback
+app.include_router(traffic_router)
+app.include_router(health_router)
+app.include_router(logs_router)
+app.include_router(feedback_router)
+app.include_router(models_router)
+app.include_router(dashboard_router)
+
 
 @app.get("/")
 async def root():
-    return {"service": settings.APP_NAME, "version": settings.APP_VERSION,
-            "dashboard": "/dashboard", "docs": "/api/docs"}
+    return {
+        "service": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "dashboard": "/dashboard",
+        "docs": "/api/docs",
+    }
