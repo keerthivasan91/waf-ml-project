@@ -9,7 +9,9 @@
     (function () {
       try {
         const saved = localStorage.getItem("waf-theme");
+        const sidebar = localStorage.getItem("waf-sidebar");
         if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+        if (sidebar === "collapsed" || sidebar === "expanded") document.documentElement.dataset.sidebar = sidebar;
       } catch (e) {}
     })();
   </script>
