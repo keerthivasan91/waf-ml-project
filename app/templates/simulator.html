@@ -389,6 +389,26 @@ html:not([data-theme="light"]) .explain-badge{background:#152035;color:#8294ad}
 html:not([data-theme="light"]) .explain-text{color:#90a2ba}
 html:not([data-theme="light"]) .explain-text strong{color:#dce6f2}
 
+
+/* Layout hardening: prevent score card and metric tiles from overlapping */
+.result-layout{grid-template-columns:minmax(0,1fr) 240px}
+.result-layout>div{min-width:0}
+.metric-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.metric-card{min-width:0;overflow:hidden}
+.metric-value{min-width:0;overflow-wrap:anywhere}
+.sim-panel,.request-card,.evidence{min-width:0}
+.score-card{min-width:0}
+@media(max-width:1500px) and (min-width:1201px){
+  .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:1200px){
+  .result-layout{grid-template-columns:1fr}
+  .score-card{min-height:270px}
+}
+@media(max-width:1050px){
+  .sim-main{grid-template-columns:1fr}
+}
+
 </style>
 {% endblock %}
 
