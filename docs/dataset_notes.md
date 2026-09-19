@@ -80,21 +80,29 @@ noise rather than genuine signal.
 `ml/feature_engineering/extractor.py`, `tokenizer.py`, and
 `normalizer.py` are used identically at training time (in the
 notebooks) and inference time (`app/services/feature_extractor.py`
-imports them directly — it's not a reimplementation). The one
-non-obvious detail: **domain-stripping** — `strip_to_path_query()`
-removes the scheme/host from URLs before feature extraction, so
-`http://example.com/search?q=x` and `http://otherhost.com/search?q=x`
-produce identical features. This was added specifically because the
-protected application's actual hostname shouldn't influence whether a
-request looks like an attack — training on absolute URLs would have
-made the model partly memorize hostnames that appeared in the training
-data rather than learning payload structure.
+imports them directly — it's not a reimplementation).
+
+Two normalization rules are part of the current deployed model contract:
+
+1. **Domain stripping** — `strip_to_path_query()` removes the scheme/host
+from URLs before feature extraction, so
+`http://example.com/search?q=x` and
+`http://otherhost.com/search?q=x` produce identical URL-derived features.
+This prevents the protected application's hostname from becoming a learned
+signal.
+
+2. **Header stripping for ML** — the training parser did not capture HTTP
+headers, so training rows used `headers={}`. Runtime ML preprocessing
+therefore also forces `headers={}`. Real browser headers are still
+forwarded to the protected application, but they are deliberately excluded
+from the current model feature vector. This keeps live feature distribution
+aligned with the deployed model's training distribution.
 
 `scaler_l2a.pkl` (a `StandardScaler`) is fit **once**, on the 70%
 train split only, and reused for both L2A and L2B's dense-feature
 input — never refit at inference time. A missing or mismatched scaler
-was a real bug encountered during development: unscaled features
-produce L2A reconstruction-error scores in the 6-10 range instead of
-the expected ~0.001-0.01, effectively breaking anomaly detection
-silently (every request looks anomalous). See
-[deployment.md](deployment.md) for the exact symptom and fix.
+was a real bug encountered during development: unscaled features produce
+L2A reconstruction-error scores in the 6-10 range instead of the expected
+~0.001-0.01, effectively breaking anomaly detection silently (every request
+looks anomalous). See [deployment.md](deployment.md) for the exact symptom
+and fix.
