@@ -58,7 +58,7 @@ class TestUILayout(unittest.TestCase):
 
     def test_theme_toggle_still_present(self):
         self.assertIn('id="themeToggle"', self.base)
-        self.assertIn('localStorage.getItem("waf-theme")', self.js)
+        self.assertIn('const key="waf-theme"', self.js)
         self.assertIn('localStorage.setItem(key,root.dataset.theme)', self.js)
 
     def test_simulator_overlap_guard_present(self):
