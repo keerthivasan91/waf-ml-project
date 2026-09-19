@@ -187,7 +187,7 @@ async def run_retrain_cycle() -> dict:
         "n_clean":       len(clean),
         "n_rejected":    len(rejected),
         "reject_reason_breakdown": dict(reject_reason_counts),
-        "note":          "Clean verified samples exported for offline retraining in Kaggle/Colab.",
+        "note":          "Clean verified samples prepared for local-machine retraining.",
     }
 
     # Persist the actual clean batch. This closes the production -> offline
