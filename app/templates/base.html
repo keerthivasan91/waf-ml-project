@@ -3,17 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}WAF-ML{% endblock %}</title>
+  <meta name="theme-color" content="#050814">
+  <title>{% block title %}WAF-ML Security Operations{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/main.css">
   {% block head %}{% endblock %}
 </head>
 <body>
-  {% include "partials/nav.html" %}
-  <main class="main">
-    {% block content %}{% endblock %}
-  </main>
+  <div class="app-shell">
+    {% include "partials/nav.html" %}
+    <div class="app-content">
+      <header class="topbar">
+        <div class="topbar-context">
+          <span class="topbar-eyebrow">SECURITY OPERATIONS</span>
+          <span class="topbar-separator">/</span>
+          <span class="topbar-page">
+            {% if active == 'dashboard' %}Threat Overview
+            {% elif active == 'logs' %}Live Traffic
+            {% elif active == 'threats' %}Threat Intelligence
+            {% elif active == 'feedback' %}Analyst Review
+            {% elif active == 'models' %}Model Registry
+            {% elif active == 'simulator' %}Attack Simulator
+            {% else %}WAF Control Plane{% endif %}
+          </span>
+        </div>
+        <div class="topbar-actions">
+          <span class="topbar-live"><span class="status-dot"></span> LIVE</span>
+          <span class="topbar-time" id="topbarTime">--:--:--</span>
+        </div>
+      </header>
+
+      <main class="main">
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="app-footer">
+        <span>WAF-ML • Hybrid Intelligent Web Application Firewall</span>
+        <span class="footer-dot"></span>
+        <span>Local security control plane</span>
+      </footer>
+    </div>
+  </div>
+
   <script src="/static/js/main.js"></script>
   {% block scripts %}{% endblock %}
 </body>
