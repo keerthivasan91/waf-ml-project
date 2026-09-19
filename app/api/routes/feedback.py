@@ -50,6 +50,24 @@ async def latest_retrain_batch():
     return batch
 
 
+@router.get("/retrain-batches/latest/export")
+async def export_latest_retrain_batch():
+    """Download the latest clean retraining batch as JSON."""
+    batch = await get_latest_retrain_batch()
+    if not batch:
+        raise HTTPException(404, "No retraining batch has been prepared")
+
+    payload = json.dumps(batch, default=str, indent=2)
+    batch_id = batch.get("batch_id", "latest")
+    return Response(
+        content=payload,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="waf_retrain_{batch_id}.json"'
+        },
+    )
+
+
 @router.get("/retrain-batches/{batch_id}/export")
 async def export_retrain_batch(batch_id: str):
     """Download one clean retraining batch as JSON for Kaggle/Colab."""
