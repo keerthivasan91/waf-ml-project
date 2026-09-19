@@ -1,0 +1,6 @@
+# Optional local-machine training dependencies.
+# Install these in the same Python environment used to run FastAPI when
+# LOCAL_RETRAIN_ENABLED=true.
+torch>=2.3.0
+onnx>=1.16.0
+onnxscript>=0.2.0
