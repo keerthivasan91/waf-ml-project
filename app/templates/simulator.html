@@ -192,7 +192,7 @@ async function run(){
     };
 
     if(d.l2a_score!==null) d.l2a_contrib=Number(Math.min(50,d.l2a_score*15).toFixed(2));
-    d.l2b_contrib=(d.label==="normal" || d.confidence===null) ? 0 : Number((d.confidence*50).toFixed(2));
+    d.l2b_contrib=(d.label==="normal" || d.confidence===null) ? 0 : Number((d.confidence*90).toFixed(2));
 
     setNode("n1", d.layer==="L1" ? "BLOCKED" : "PASS", d.layer==="L1" ? "blocked":"done");
     if(d.layer==="L1"){
