@@ -427,6 +427,7 @@ def copy_base_artifacts(base_model_dir: Path, output_dir: Path) -> None:
     for name in (
         "layer2a_best.onnx",
         "layer2a_best.onnx.data",
+        "layer2a_best_threshold.txt",
         "scaler_l2a.pkl",
     ):
         src = base_model_dir / name
