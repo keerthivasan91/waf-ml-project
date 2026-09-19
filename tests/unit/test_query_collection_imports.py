@@ -14,6 +14,7 @@ class TestQueryCollectionImports(unittest.TestCase):
                 imported_names.update(alias.name for alias in node.names)
 
         self.assertIn("retrain_log", imported_names)
+        self.assertIn("retrain_batches", imported_names)
 
 
 if __name__ == "__main__":
