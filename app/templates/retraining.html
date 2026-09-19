@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}WAF-ML — Retraining Control{% endblock %}
+{% set active = "retraining" %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Retraining Control</h1>
+    <span class="page-sub">Admin workflow · review → audit → anti-poison validation → offline training</span>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card stat-card--danger">
+    <div class="stat-label">Pending Reviews</div>
+    <div class="stat-value" id="pendingReviews">{{ pending_count }}</div>
+    <div class="stat-sub">Must be human-verified before retraining validation</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Minimum Samples</div>
+    <div class="stat-value">200</div>
+    <div class="stat-sub">Configured retrain gate</div>
+  </div>
+  <div class="stat-card stat-card--ok">
+    <div class="stat-label">Pipeline</div>
+    <div class="stat-value" style="font-size:1.6rem">READY</div>
+    <div class="stat-sub">Anti-poisoning validation enabled</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Model Reload</div>
+    <div class="stat-value" style="font-size:1.6rem">MANUAL</div>
+    <div class="stat-sub">Reload after new artifacts are deployed</div>
+  </div>
+</div>
+
+<section class="card admin-control-card">
+  <div class="card-header">
+    <div>
+      <h2>Admin Actions</h2>
+      <div class="dim" style="margin-top:.25rem">Operational controls for the feedback and model lifecycle.</div>
+    </div>
+  </div>
+
+  <div class="admin-action-grid">
+    <a class="admin-action" href="/dashboard/feedback">
+      <strong>Review Queue</strong>
+      <span>Complete pending human labels and mark poisoning samples.</span>
+      <em>Open reviews →</em>
+    </a>
+
+    <button class="admin-action" onclick="triggerAudit()">
+      <strong>Trigger Health Audit</strong>
+      <span>Capture recent allow/log traffic, re-score it and create disagreement reviews.</span>
+      <em>Run audit →</em>
+    </button>
+
+    <button class="admin-action admin-action--warn" onclick="triggerRetrain()">
+      <strong>Prepare Retraining Batch</strong>
+      <span>Run the anti-poisoning checks on verified feedback. Full model training remains offline.</span>
+      <em>Run validation →</em>
+    </button>
+
+    <button class="admin-action" onclick="reloadModels()">
+      <strong>Reload Models</strong>
+      <span>Reload the currently deployed ONNX models without restarting the server.</span>
+      <em>Reload →</em>
+    </button>
+  </div>
+
+  <div id="admin-action-result" class="admin-action-result" hidden></div>
+</section>
+
+<div class="two-col">
+  <section class="card">
+    <div class="card-header">
+      <h2>Recent Retrain Runs</h2>
+      <span class="page-sub">{{ retrain_logs|length }} records</span>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Time</th><th>Status</th><th>Raw</th><th>Clean</th><th>Rejected</th></tr></thead>
+      <tbody>
+      {% for row in retrain_logs %}
+        <tr>
+          <td class="mono nowrap">{{ row.timestamp.strftime('%Y-%m-%d %H:%M') if row.timestamp else '—' }}</td>
+          <td><span class="attack-badge attack-badge--normal">{{ row.status }}</span></td>
+          <td class="mono">{{ row.n_raw | default(0) }}</td>
+          <td class="mono">{{ row.n_clean | default(0) }}</td>
+          <td class="mono">{{ row.n_rejected | default(0) }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="empty-state">No retraining runs yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>Health Audit History</h2>
+      <span class="page-sub">{{ audit_logs|length }} records</span>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Time</th><th>Error Rate</th><th>Captured</th><th>Reviews</th></tr></thead>
+      <tbody>
+      {% for row in audit_logs %}
+        <tr>
+          <td class="mono nowrap">{{ row.timestamp.strftime('%Y-%m-%d %H:%M') if row.timestamp else '—' }}</td>
+          <td class="mono">{{ ((row.error_rate | default(0)) * 100) | round(1) }}%</td>
+          <td class="mono">{{ row.traffic_window_captured | default(0) }}</td>
+          <td class="mono">{{ row.feedback_candidates | default(0) }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="empty-state">No health audits recorded yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+.admin-action-card{}
+.admin-action-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem}
+.admin-action{
+  appearance:none;text-decoration:none;text-align:left;
+  border:1px solid var(--line2);border-radius:10px;background:#0b1425;
+  color:var(--text);padding:1rem;display:flex;flex-direction:column;gap:.45rem;
+  cursor:pointer;transition:.18s ease;font:inherit;
+}
+.admin-action:hover{transform:translateY(-1px);border-color:var(--cyan);background:#0e1a30;box-shadow:0 10px 24px rgba(0,0,0,.16)}
+.admin-action strong{font:600 .9rem var(--head)}
+.admin-action span{font-size:.68rem;color:var(--muted);line-height:1.5}
+.admin-action em{font:700 .63rem var(--mono);color:var(--cyan);font-style:normal;margin-top:auto}
+.admin-action--warn{border-color:rgba(245,158,11,.28)}
+.admin-action--warn:hover{border-color:var(--amber)}
+.admin-action-result{margin-top:.8rem;padding:.7rem .8rem;border:1px solid var(--line2);border-radius:8px;font:.7rem var(--mono);color:var(--muted);word-break:break-word}
+.admin-action-result.ok{border-color:rgba(34,197,94,.35);color:#8cf0ac;background:rgba(34,197,94,.06)}
+.admin-action-result.err{border-color:rgba(255,59,92,.35);color:#ff9bad;background:rgba(255,59,92,.06)}
+html[data-theme="light"] .admin-action{background:#fff;color:var(--text);border-color:#d9e3ee}
+html[data-theme="light"] .admin-action:hover{background:#eef8fb;border-color:#0891b2}
+@media(max-width:1100px){.admin-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.admin-action-grid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const resultBox = document.getElementById('admin-action-result');
+
+function showResult(ok, text) {
+  resultBox.hidden = false;
+  resultBox.className = 'admin-action-result ' + (ok ? 'ok' : 'err');
+  resultBox.textContent = text;
+}
+
+async function triggerAudit() {
+  showResult(true, 'Running health audit…');
+  try {
+    const r = await fetch('/api/health/trigger-audit?error_rate=1.0', {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+    showResult(true, 'Audit complete: captured=' + (d.traffic_window_captured ?? 0) +
+      ', new review candidates=' + (d.feedback_candidates ?? 0));
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    showResult(false, 'Audit failed: ' + e);
+  }
+}
+
+async function triggerRetrain() {
+  showResult(true, 'Running anti-poisoning validation…');
+  try {
+    const r = await fetch('/api/feedback/trigger-retrain', {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+
+    if (d.status === 'skipped') {
+      showResult(true, 'Retraining not queued: ' + (d.n_samples ?? 0) +
+        ' verified samples available; minimum is 200.');
+    } else {
+      showResult(true, 'Retraining batch queued: raw=' + (d.n_raw ?? 0) +
+        ', clean=' + (d.n_clean ?? 0) + ', rejected=' + (d.n_rejected ?? 0) +
+        '. Full model training remains offline.');
+      setTimeout(() => location.reload(), 1500);
+    }
+  } catch (e) {
+    showResult(false, 'Retraining validation failed: ' + e);
+  }
+}
+
+async function reloadModels() {
+  showResult(true, 'Reloading ONNX models…');
+  try {
+    const r = await fetch('/api/models/reload', {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+    showResult(true, 'Models reloaded successfully. L2A threshold=' + d.l2a_threshold);
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    showResult(false, 'Model reload failed: ' + e);
+  }
+}
+</script>
+{% endblock %}
