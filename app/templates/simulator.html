@@ -337,6 +337,58 @@
   .sim-title{font-size:1.55rem}
   .metric-grid{grid-template-columns:1fr 1fr}
 }
+
+/* Dark-mode adaptation for the presentation simulator */
+html:not([data-theme="light"]) .sim-shell{color:#edf5ff}
+html:not([data-theme="light"]) .sim-hero{border-color:#25354e;background:radial-gradient(circle at 85% 20%,rgba(245,158,11,.12),transparent 28%),radial-gradient(circle at 10% 100%,rgba(34,211,238,.07),transparent 30%),linear-gradient(135deg,#0f1728 0%,#0c1424 55%,#09111e 100%);box-shadow:0 16px 45px rgba(0,0,0,.24)}
+html:not([data-theme="light"]) .sim-copy{color:#91a4bd}
+html:not([data-theme="light"]) .sim-chip{border-color:#263650;background:#10192b;color:#aebdd0}
+html:not([data-theme="light"]) .sim-live-card{background:#080f1d;color:#e7eff9}
+html:not([data-theme="light"]) .sim-live-label,html:not([data-theme="light"]) .sim-live-sub{color:#8194ad}
+html:not([data-theme="light"]) .sim-panel{background:#0b1121;border-color:#1c2942;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+html:not([data-theme="light"]) .sim-panel-head{border-bottom-color:#1b2941}
+html:not([data-theme="light"]) .sim-panel-sub{color:#8294ad}
+html:not([data-theme="light"]) .scenario-btn{background:#0b1424;border-color:#23334d;color:#c8d4e3}
+html:not([data-theme="light"]) .scenario-btn:hover{border-color:#3b506f;background:#0f192b}
+html:not([data-theme="light"]) .scenario-btn.active{background:linear-gradient(90deg,rgba(245,158,11,.11),rgba(11,20,36,.96));border-color:#dca43c}
+html:not([data-theme="light"]) .scenario-icon{background:#152035;color:#9fb0c7}
+html:not([data-theme="light"]) .scenario-name{color:#e2ebf5}
+html:not([data-theme="light"]) .scenario-desc{color:#8192aa}
+html:not([data-theme="light"]) .scenario-tag{border-color:#263650;color:#8294ad;background:#10192b}
+html:not([data-theme="light"]) .sim-form{border-top-color:#1b2941}
+html:not([data-theme="light"]) .field label{color:#8192aa}
+html:not([data-theme="light"]) .field input,html:not([data-theme="light"]) .field select,html:not([data-theme="light"]) .field textarea{border-color:#2a3a53;background:#09111e;color:#edf5ff}
+html:not([data-theme="light"]) .field input:focus,html:not([data-theme="light"]) .field select:focus,html:not([data-theme="light"]) .field textarea:focus{border-color:#f5b942;background:#0c1627}
+html:not([data-theme="light"]) .status-line{color:#8192aa}
+html:not([data-theme="light"]) .request-bar{border-color:#263650;background:#070e1a}
+html:not([data-theme="light"]) .flow-track{background:#263650}
+html:not([data-theme="light"]) .flow-circle{border-color:#2a3a53;background:#0c1525;color:#8fa2bb;box-shadow:0 6px 16px rgba(0,0,0,.2)}
+html:not([data-theme="light"]) .flow-name{color:#cfd9e7}
+html:not([data-theme="light"]) .flow-state{color:#8192aa}
+html:not([data-theme="light"]) .metric-card{border-color:#24344e;background:#0d1627}
+html:not([data-theme="light"]) .metric-label{color:#8192aa}
+html:not([data-theme="light"]) .metric-value{color:#edf5ff}
+html:not([data-theme="light"]) .decision-banner{border-color:#273650;background:#0d1627}
+html:not([data-theme="light"]) .decision-caption{color:#8192aa}
+html:not([data-theme="light"]) .decision-banner.allow{background:rgba(22,163,74,.10);border-color:rgba(34,197,94,.28)}
+html:not([data-theme="light"]) .decision-banner.log{background:rgba(217,119,6,.11);border-color:rgba(245,158,11,.28)}
+html:not([data-theme="light"]) .decision-banner.block{background:rgba(220,38,38,.11);border-color:rgba(239,68,68,.28)}
+html:not([data-theme="light"]) .score-card{border-color:#24344e;background:#0b1221}
+html:not([data-theme="light"]) .score-ring{background:conic-gradient(#16a34a calc(var(--score) * 1%),#1b2941 0)}
+html:not([data-theme="light"]) .score-ring::before{background:#0b1221;border-color:#24344e}
+html:not([data-theme="light"]) .score-caption,html:not([data-theme="light"]) .score-scale-row{color:#8192aa}
+html:not([data-theme="light"]) .evidence-card{border-color:#24344e;background:#0d1627}
+html:not([data-theme="light"]) .evidence-head{border-bottom-color:#20304a}
+html:not([data-theme="light"]) .evidence-meta{color:#8192aa}
+html:not([data-theme="light"]) .event{border-color:#24344e;background:#10192a}
+html:not([data-theme="light"]) .event-time{color:#8192aa}
+html:not([data-theme="light"]) .event-text{color:#afbdce}
+html:not([data-theme="light"]) .event-pill{border-color:#2a3a53}
+html:not([data-theme="light"]) .explain{border-color:#2a3a53;background:linear-gradient(90deg,#0c1524,#0f182a)}
+html:not([data-theme="light"]) .explain-badge{background:#152035;color:#8294ad}
+html:not([data-theme="light"]) .explain-text{color:#90a2ba}
+html:not([data-theme="light"]) .explain-text strong{color:#dce6f2}
+
 </style>
 {% endblock %}
 
