@@ -24,8 +24,17 @@ import json
 import random
 import re
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
+
+# The GRU candidate imports `feature_engineering` as a top-level package.
+# When launched with `python -m ml.retraining.offline_retrain`, the repository
+# root is on sys.path but `ml/` is not, so add it explicitly.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ML_ROOT = PROJECT_ROOT / "ml"
+if str(ML_ROOT) not in sys.path:
+    sys.path.insert(0, str(ML_ROOT))
 
 import numpy as np
 import onnxruntime as ort
