@@ -92,9 +92,19 @@
     </a>
     <a class="admin-action" href="/dashboard/retraining">
       <strong>Retraining Control</strong>
-      <span>Trigger audit/retraining validation and inspect history.</span>
+      <span>Inspect verified samples, anti-poisoning results and retrain history.</span>
       <em>Open control center →</em>
     </a>
+    <button class="admin-action" onclick="adminAudit()">
+      <strong>Trigger Health Audit</strong>
+      <span>Re-score recent allow/log traffic and create review candidates.</span>
+      <em>Run audit →</em>
+    </button>
+    <button class="admin-action admin-action--warn" onclick="adminRetrain()">
+      <strong>Prepare Retraining</strong>
+      <span>Validate verified reviews against the anti-poisoning gate.</span>
+      <em>Validate batch →</em>
+    </button>
     <a class="admin-action" href="/dashboard/models">
       <strong>Model Registry</strong>
       <span>Inspect artifacts and hot-reload deployed models.</span>
@@ -111,5 +121,45 @@
 {% endblock %}
 
 {% block scripts %}
-<script>setTimeout(() => location.reload(), 30000);</script>
+<script>
+async function adminAudit(){
+  const card=event?.currentTarget;
+  if(card) card.disabled=true;
+  try{
+    const r=await fetch('/api/health/trigger-audit?error_rate=1.0',{method:'POST'});
+    const d=await r.json();
+    alert(r.ok
+      ? 'Health audit complete. Review candidates: ' + (d.feedback_candidates ?? 0)
+      : 'Health audit failed: ' + JSON.stringify(d));
+    if(r.ok) location.reload();
+  }catch(e){
+    alert('Health audit failed: '+e);
+  }finally{
+    if(card) card.disabled=false;
+  }
+}
+async function adminRetrain(){
+  const card=event?.currentTarget;
+  if(card) card.disabled=true;
+  try{
+    const r=await fetch('/api/feedback/trigger-retrain',{method:'POST'});
+    const d=await r.json();
+    if(!r.ok){
+      alert('Retraining validation failed: '+JSON.stringify(d));
+      return;
+    }
+    if(d.status==='skipped'){
+      alert('Retraining not queued. Verified samples: '+(d.n_samples ?? 0)+' / 200 required.');
+    }else{
+      alert('Retraining batch queued. Clean: '+(d.n_clean ?? 0)+', rejected: '+(d.n_rejected ?? 0)+'. Full model training remains offline.');
+      location.reload();
+    }
+  }catch(e){
+    alert('Retraining validation failed: '+e);
+  }finally{
+    if(card) card.disabled=false;
+  }
+}
+setTimeout(() => location.reload(), 30000);
+</script>
 {% endblock %}
