@@ -95,12 +95,12 @@
       <span>Inspect verified samples, anti-poisoning results and retrain history.</span>
       <em>Open control center →</em>
     </a>
-    <button class="admin-action" onclick="adminAudit()">
+    <button class="admin-action" onclick="adminAudit(this)">
       <strong>Trigger Health Audit</strong>
       <span>Re-score recent allow/log traffic and create review candidates.</span>
       <em>Run audit →</em>
     </button>
-    <button class="admin-action admin-action--warn" onclick="adminRetrain()">
+    <button class="admin-action admin-action--warn" onclick="adminRetrain(this)">
       <strong>Prepare Retraining</strong>
       <span>Validate verified reviews against the anti-poisoning gate.</span>
       <em>Validate batch →</em>
@@ -122,8 +122,7 @@
 
 {% block scripts %}
 <script>
-async function adminAudit(){
-  const card=event?.currentTarget;
+async function adminAudit(card){
   if(card) card.disabled=true;
   try{
     const r=await fetch('/api/health/trigger-audit?error_rate=1.0',{method:'POST'});
@@ -138,8 +137,7 @@ async function adminAudit(){
     if(card) card.disabled=false;
   }
 }
-async function adminRetrain(){
-  const card=event?.currentTarget;
+async function adminRetrain(card){
   if(card) card.disabled=true;
   try{
     const r=await fetch('/api/feedback/trigger-retrain',{method:'POST'});
