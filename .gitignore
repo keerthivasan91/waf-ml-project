@@ -3,6 +3,10 @@ ml/data/raw/
 ml/data/processed/
 ml/data/splits/
 
+# local adaptive retraining artifacts - keep frozen data/checkpoints out of git
+ml/retraining_artifacts/
+ml/retraining_runs/
+
 
 
 # mlflow artifacts
