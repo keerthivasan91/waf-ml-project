@@ -204,6 +204,57 @@ async function triggerRetrain() {
   }
 }
 
+async function startLocalRetrain() {
+  showResult(true, 'Starting local PyTorch retraining…');
+  try {
+    const r = await fetch('/api/feedback/local-retrain/start', {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+
+    if (d.status === 'skipped') {
+      showResult(true, 'Local retraining not started: ' + (d.reason ?? 'batch gate'));
+      return;
+    }
+
+    showResult(true, 'Local retraining started for batch ' + (d.batch_id ?? 'unknown') + '…');
+    pollLocalRetrain();
+  } catch (e) {
+    showResult(false, 'Local retraining failed to start: ' + e);
+  }
+}
+
+async function pollLocalRetrain() {
+  try {
+    const r = await fetch('/api/feedback/local-retrain/status');
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+
+    if (d.status === 'starting' || d.status === 'running') {
+      showResult(true, 'Local training is running… log=' + (d.log_path ?? 'training.log'));
+      setTimeout(pollLocalRetrain, 2000);
+      return;
+    }
+
+    if (d.status === 'deployed') {
+      showResult(true, 'Local retraining completed and the new model was promoted. Run=' + (d.run_dir ?? '—'));
+      setTimeout(() => location.reload(), 1500);
+      return;
+    }
+
+    if (d.status === 'trained') {
+      showResult(true, 'Training completed without auto-promotion. Run=' + (d.run_dir ?? '—'));
+      return;
+    }
+
+    if (d.status === 'failed') {
+      showResult(false, 'Local retraining failed: ' + (d.error ?? 'unknown error'));
+      return;
+    }
+  } catch (e) {
+    showResult(false, 'Could not read local retraining status: ' + e);
+  }
+}
+
 async function reloadModels() {
   showResult(true, 'Reloading ONNX models…');
   try {
@@ -216,5 +267,7 @@ async function reloadModels() {
     showResult(false, 'Model reload failed: ' + e);
   }
 }
+
+pollLocalRetrain();
 </script>
 {% endblock %}
