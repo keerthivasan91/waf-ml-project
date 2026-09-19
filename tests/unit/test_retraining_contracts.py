@@ -36,6 +36,11 @@ class TestRetrainingContracts(unittest.TestCase):
         self.assertIn('"/retrain-batches/latest"', source)
         self.assertIn('"/retrain-batches/{batch_id}/export"', source)
 
+    def test_clean_sample_gate_prevents_undersized_batch(self):
+        source = (ROOT / "app/services/adaptive_retrain.py").read_text(encoding="utf-8")
+        self.assertIn("if len(clean) < settings.RETRAIN_MIN_SAMPLES:", source)
+        self.assertIn('"reason": "insufficient_clean_samples"', source)
+
     def test_clean_feedback_is_marked_as_consumed(self):
         source = (ROOT / "app/services/adaptive_retrain.py").read_text(encoding="utf-8")
         self.assertIn('"retrain_batch_id"', source)
