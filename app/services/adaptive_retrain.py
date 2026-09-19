@@ -37,11 +37,12 @@ trigger event + clean sample count, matching NB07's Priority D pipeline
 import asyncio
 import hashlib
 import re
+from uuid import uuid4
 from collections import defaultdict
 from datetime import datetime
 from app.core.config import settings
 from app.core.logging import logger
-from app.db.collections import feedback_queue, retrain_log
+from app.db.collections import feedback_queue, retrain_log, retrain_batches
 import app.services.layer1_filter as l1
 import app.services.layer2a_anomaly as l2a
 import app.services.layer2b_deep as l2b
@@ -67,7 +68,9 @@ def _cross_agreement_pass(sample: dict) -> tuple[bool, str]:
     except Exception as e:
         return False, f"reaudit_failed:{e}"
 
-    if verified_label == "normal":
+    # "false_positive" is a human-confirmed normal request and must follow
+    # the normal cross-agreement path, not the attack path.
+    if verified_label in {"normal", "false_positive"}:
         if result["label"] == "normal":
             return True, ""
         return False, "cross_agreement_failed_normal_flagged_as_attack"
@@ -150,16 +153,39 @@ async def run_retrain_cycle() -> dict:
     # service's job ends at producing a clean, anti-poison-verified batch
     # for NB07 to consume and gate.
 
+    batch_id = str(uuid4())
     run_doc = {
-        "timestamp":    datetime.utcnow(),
-        "status":       "queued",
-        "n_raw":        len(samples),
-        "n_clean":      len(clean),
-        "n_rejected":   len(rejected),
+        "batch_id":      batch_id,
+        "timestamp":     datetime.utcnow(),
+        "status":        "queued",
+        "n_raw":         len(samples),
+        "n_clean":       len(clean),
+        "n_rejected":    len(rejected),
         "reject_reason_breakdown": dict(reject_reason_counts),
-        "note":         "Full retraining runs offline in Kaggle/Colab (NB07 pipeline). "
-                        "This logs the trigger event, clean sample count, and anti-poison "
-                        "rejection breakdown for that pipeline to consume.",
+        "note":          "Clean verified samples exported for offline retraining in Kaggle/Colab.",
     }
+
+    # Persist the actual clean batch. This closes the production -> offline
+    # training gap: the offline trainer can consume exactly the batch that
+    # passed the online anti-poisoning gate.
+    batch_doc = {
+        "batch_id": batch_id,
+        "created_at": run_doc["timestamp"],
+        "status": "queued",
+        "n_raw": len(samples),
+        "n_clean": len(clean),
+        "n_rejected": len(rejected),
+        "reject_reason_breakdown": dict(reject_reason_counts),
+        "samples": clean,
+    }
+    await retrain_batches().insert_one(batch_doc)
     await retrain_log().insert_one(run_doc)
-    return {**run_doc, "_id": str(run_doc.get("_id", ""))}
+
+    return {
+        "status": "queued",
+        "batch_id": batch_id,
+        "n_raw": len(samples),
+        "n_clean": len(clean),
+        "n_rejected": len(rejected),
+        "reject_reason_breakdown": dict(reject_reason_counts),
+    }
