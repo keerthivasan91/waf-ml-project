@@ -87,7 +87,14 @@ async def run_retrain_cycle() -> dict:
     """
     # Fetch verified non-poisoned feedback
     cursor = feedback_queue().find(
-        {"verified_label": {"$ne": None}, "poisoning_flag": False},
+        {
+            "verified_label": {"$ne": None},
+            "poisoning_flag": False,
+            "$or": [
+                {"retrain_batch_id": {"$exists": False}},
+                {"retrain_batch_id": None},
+            ],
+        },
         {"_id": 0}
     )
     samples = await cursor.to_list(length=10000)
@@ -179,6 +186,20 @@ async def run_retrain_cycle() -> dict:
         "samples": clean,
     }
     await retrain_batches().insert_one(batch_doc)
+
+    # Mark only clean samples as consumed. Rejected samples remain eligible for
+    # a future review/model cycle because a later model may legitimately
+    # disagree with the current anti-poisoning re-audit.
+    clean_ids = [s.get("request_id") for s in clean if s.get("request_id")]
+    if clean_ids:
+        await feedback_queue().update_many(
+            {"request_id": {"$in": clean_ids}},
+            {"$set": {
+                "retrain_batch_id": batch_id,
+                "retrain_exported_at": run_doc["timestamp"],
+            }},
+        )
+
     await retrain_log().insert_one(run_doc)
 
     return {
