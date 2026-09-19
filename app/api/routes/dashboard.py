@@ -50,6 +50,18 @@ async def threats_page(request: Request):
         context={"request": request, "threats": threats}
     )
 
+@router.get("/simulator", response_class=HTMLResponse)
+async def simulator_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="simulator.html",
+        context={
+            "request": request,
+            "version": "1.0.0",
+        },
+    )
+
+
 @router.get("/dashboard/models", response_class=HTMLResponse)
 async def models_page(request: Request):
     import app.services.layer2a_anomaly as l2a
