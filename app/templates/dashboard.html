@@ -75,6 +75,39 @@
     </table>
   </section>
 </div>
+
+<section class="card admin-control-card">
+  <div class="card-header">
+    <div>
+      <h2>Admin Control Center</h2>
+      <div class="dim" style="margin-top:.25rem">Reviews, health audit, retraining validation and model lifecycle controls.</div>
+    </div>
+    <span class="score-chip">{{ pending_reviews }} pending reviews</span>
+  </div>
+  <div class="admin-action-grid">
+    <a class="admin-action" href="/dashboard/feedback">
+      <strong>Complete Reviews</strong>
+      <span>Verify labels and flag poisoning samples.</span>
+      <em>Open review queue →</em>
+    </a>
+    <a class="admin-action" href="/dashboard/retraining">
+      <strong>Retraining Control</strong>
+      <span>Trigger audit/retraining validation and inspect history.</span>
+      <em>Open control center →</em>
+    </a>
+    <a class="admin-action" href="/dashboard/models">
+      <strong>Model Registry</strong>
+      <span>Inspect artifacts and hot-reload deployed models.</span>
+      <em>Manage models →</em>
+    </a>
+    <a class="admin-action" href="/dashboard/logs">
+      <strong>Traffic & Logs</strong>
+      <span>Inspect every request and filter by decision.</span>
+      <em>Open live traffic →</em>
+    </a>
+  </div>
+</section>
+
 {% endblock %}
 
 {% block scripts %}
