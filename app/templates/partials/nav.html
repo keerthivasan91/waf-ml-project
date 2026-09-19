@@ -1,4 +1,7 @@
-<aside class="sidebar">
+<aside class="sidebar" aria-label="Primary navigation">
+  <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">
+    <span id="sidebarToggleIcon" aria-hidden="true">‹</span>
+  </button>
   <div class="sidebar-section">
     <div class="sidebar-label">MONITOR</div>
     <a href="/dashboard" class="side-link {% if active=='dashboard' %}active{% endif %}">
