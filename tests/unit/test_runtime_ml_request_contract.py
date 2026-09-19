@@ -1,7 +1,8 @@
 import unittest
 
+import numpy as np
 
-from app.services.feature_extractor import normalize_request_for_ml
+from app.services.feature_extractor import extract, normalize_request_for_ml
 
 
 class TestRuntimeMLRequestContract(unittest.TestCase):
@@ -25,6 +26,32 @@ class TestRuntimeMLRequestContract(unittest.TestCase):
         self.assertEqual(normalized["url"], request["url"])
         self.assertEqual(normalized["method"], request["method"])
         self.assertEqual(normalized["body"], request["body"])
+
+    def test_runtime_features_ignore_browser_headers(self):
+        base = {
+            "url": "/api/products?category=electronics&page=1",
+            "method": "GET",
+            "body": "",
+        }
+
+        with_headers = {
+            **base,
+            "headers": {
+                "user-agent": "Mozilla/5.0",
+                "accept": "application/json",
+                "accept-language": "en-US,en;q=0.9",
+                "referer": "http://127.0.0.1:8000/products",
+                "cookie": "session=abc",
+                "sec-fetch-site": "same-origin",
+            },
+        }
+        without_headers = {**base, "headers": {}}
+
+        fvec_a, tokens_a = extract(with_headers)
+        fvec_b, tokens_b = extract(without_headers)
+
+        np.testing.assert_array_equal(fvec_a, fvec_b)
+        np.testing.assert_array_equal(tokens_a, tokens_b)
 
     def test_ip_is_excluded_from_ml_request(self):
         normalized = normalize_request_for_ml({
