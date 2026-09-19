@@ -36,6 +36,12 @@ class TestRetrainingContracts(unittest.TestCase):
         self.assertIn('"/retrain-batches/latest"', source)
         self.assertIn('"/retrain-batches/{batch_id}/export"', source)
 
+    def test_clean_feedback_is_marked_as_consumed(self):
+        source = (ROOT / "app/services/adaptive_retrain.py").read_text(encoding="utf-8")
+        self.assertIn('"retrain_batch_id"', source)
+        self.assertIn('"retrain_exported_at"', source)
+        self.assertIn('{"retrain_batch_id": {"$exists": False}}', source)
+
 
 if __name__ == "__main__":
     unittest.main()
