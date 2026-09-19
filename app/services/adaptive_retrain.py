@@ -153,6 +153,24 @@ async def run_retrain_cycle() -> dict:
     logger.info("Retrain anti-poison: %d/%d samples passed (%d rejected)",
                 len(clean), len(samples), len(rejected))
 
+    # The online gate must be based on the clean, anti-poison-verified count.
+    # Otherwise a batch such as 185 clean / 233 raw would be marked queued even
+    # though the offline trainer correctly refuses batches below 200 samples.
+    if len(clean) < settings.RETRAIN_MIN_SAMPLES:
+        logger.info(
+            "Retrain skipped after anti-poisoning: only %d clean samples (min=%d)",
+            len(clean),
+            settings.RETRAIN_MIN_SAMPLES,
+        )
+        return {
+            "status": "skipped",
+            "reason": "insufficient_clean_samples",
+            "n_samples": len(samples),
+            "n_clean": len(clean),
+            "n_rejected": len(rejected),
+            "reject_reason_breakdown": dict(reject_reason_counts),
+        }
+
     # NB07's human-review batch-size gate (batch must not exceed
     # MAX_BATCH_RATIO of the target class's actual training-set size) needs
     # per-class training counts this service doesn't have at runtime. That
