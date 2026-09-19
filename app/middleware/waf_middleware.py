@@ -110,7 +110,9 @@ class WAFMiddleware(BaseHTTPMiddleware):
         req_dict = {
             "url": clean_url,
             "method": request.method,
-            "headers": dict(request.headers),
+            # Fix A: current models were trained with headers={}. Keep browser
+            # headers out of the ML feature distribution.
+            "headers": {},
             "body": body_text,
             "ip": request.client.host if request.client else None,
         }
