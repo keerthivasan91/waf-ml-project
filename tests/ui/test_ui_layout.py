@@ -8,6 +8,8 @@ NAV = ROOT / "app/templates/partials/nav.html"
 CSS = ROOT / "app/static/css/main.css"
 JS = ROOT / "app/static/js/main.js"
 SIM = ROOT / "app/templates/simulator.html"
+DASHBOARD = ROOT / "app/templates/dashboard.html"
+RETRAIN = ROOT / "app/templates/retraining.html"
 
 
 class TestUILayout(unittest.TestCase):
@@ -18,6 +20,8 @@ class TestUILayout(unittest.TestCase):
         cls.css = CSS.read_text(encoding="utf-8")
         cls.js = JS.read_text(encoding="utf-8")
         cls.sim = SIM.read_text(encoding="utf-8")
+        cls.dashboard = DASHBOARD.read_text(encoding="utf-8")
+        cls.retraining = RETRAIN.read_text(encoding="utf-8")
 
     def test_single_global_header(self):
         self.assertEqual(self.base.count('class="global-header"'), 1)
@@ -60,6 +64,23 @@ class TestUILayout(unittest.TestCase):
         self.assertIn('id="themeToggle"', self.base)
         self.assertIn('const key="waf-theme"', self.js)
         self.assertIn('localStorage.setItem(key,root.dataset.theme)', self.js)
+
+    def test_admin_controls_are_present(self):
+        self.assertIn('Admin Control Center', self.dashboard)
+        self.assertIn('Complete Reviews', self.dashboard)
+        self.assertIn('Trigger Health Audit', self.dashboard)
+        self.assertIn('Prepare Retraining', self.dashboard)
+        self.assertIn('/api/health/trigger-audit?error_rate=1.0', self.dashboard)
+        self.assertIn('/api/feedback/trigger-retrain', self.dashboard)
+
+    def test_retraining_control_page_exists(self):
+        self.assertIn('Retraining Control', self.retraining)
+        self.assertIn('Review Queue', self.retraining)
+        self.assertIn('Prepare Retraining Batch', self.retraining)
+        self.assertIn('Full model training remains offline', self.retraining)
+        self.assertIn('/api/feedback/trigger-retrain', self.retraining)
+        self.assertIn('/api/health/trigger-audit?error_rate=1.0', self.retraining)
+        self.assertIn('/api/models/reload', self.retraining)
 
     def test_simulator_overlap_guard_present(self):
         self.assertIn('Layout hardening: prevent score card and metric tiles from overlapping', self.sim)
