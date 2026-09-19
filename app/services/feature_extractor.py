@@ -49,6 +49,7 @@ def normalize_request_for_ml(request: dict) -> dict:
         "body": request.get("body", ""),
     }
 
+
 # ---------------------------------------------------------------------
 # Shared tokenizer / normalizer
 # ---------------------------------------------------------------------
@@ -64,6 +65,13 @@ def _load_normalizer():
             raise FileNotFoundError(f"Normalizer file not found: {scaler_path}")
         _normalizer = Normalizer.load(str(scaler_path))
     return _normalizer
+
+
+def reload_normalizer() -> None:
+    """Drop the cached scaler so a freshly promoted artifact is used."""
+    global _normalizer
+    _normalizer = None
+    _load_normalizer()
 
 
 def extract(request: dict) -> tuple[np.ndarray, np.ndarray]:
@@ -101,7 +109,7 @@ def extract(request: dict) -> tuple[np.ndarray, np.ndarray]:
     if fvec.ndim == 1:
         fvec = fvec.reshape(1, -1)
 
-    # 3) Exact training-side normalizer
+    # 4) Exact training-side normalizer
     norm = _load_normalizer()
     fvec_scaled = norm.transform(fvec).astype(np.float32)
 
