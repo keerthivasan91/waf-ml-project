@@ -6,7 +6,7 @@
 <div class="page-header">
   <div>
     <h1>Retraining Control</h1>
-    <span class="page-sub">Admin workflow · review → audit → anti-poison validation → offline training</span>
+    <span class="page-sub">Admin workflow · review → audit → anti-poison validation → local training</span>
   </div>
 </div>
 
@@ -27,9 +27,9 @@
     <div class="stat-sub">Anti-poisoning validation enabled</div>
   </div>
   <div class="stat-card">
-    <div class="stat-label">Model Reload</div>
-    <div class="stat-value" style="font-size:1.6rem">MANUAL</div>
-    <div class="stat-sub">Reload after new artifacts are deployed</div>
+    <div class="stat-label">Local Training</div>
+    <div class="stat-value" style="font-size:1.6rem">NATIVE</div>
+    <div class="stat-sub">PyTorch retraining runs on this machine</div>
   </div>
 </div>
 
@@ -56,7 +56,7 @@
 
     <a class="admin-action" href="/api/feedback/retrain-batches/latest/export" target="_blank">
       <strong>Latest Batch</strong>
-      <span>Inspect the clean verified batch prepared for offline training.</span>
+      <span>Inspect the clean verified batch prepared for local training.</span>
       <em>Open JSON →</em>
     </a>
 
@@ -196,7 +196,7 @@ async function triggerRetrain() {
     } else {
       showResult(true, 'Retraining batch queued: raw=' + (d.n_raw ?? 0) +
         ', clean=' + (d.n_clean ?? 0) + ', rejected=' + (d.n_rejected ?? 0) +
-        '. Full model training remains offline.');
+        '. Start Local Retraining to run PyTorch on this machine.');
       setTimeout(() => location.reload(), 1500);
     }
   } catch (e) {
