@@ -5,13 +5,9 @@
 # the middleware forwards path + query 1:1, except its own bypassed
 # routes (see bypass_paths in app/middleware/waf_middleware.py).
 #
-# NOTE: as of this script, app/main.py registers `limiter` and a
-# RateLimitExceeded handler but never actually adds SlowAPIMiddleware
-# or a per-route @limiter.limit(...) decorator — so RATE_LIMIT_PER_MIN
-# isn't currently enforced anywhere, and you likely won't see 429s no
-# matter how fast you send requests. The delay + retry below are kept
-# anyway: harmless if the limiter stays unwired, and correct once it's
-# actually turned on.
+# Rate limiting is enabled globally by SlowAPIMiddleware using the
+# RATE_LIMIT_PER_MIN default. The delay + retry below keep this bulk
+# demonstration stable and handle HTTP 429 responses cleanly.
 import time
 import requests
 
