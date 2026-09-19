@@ -151,6 +151,35 @@ def evaluate_macro_f1(
     )
 
 
+def validate_batch_ratio(
+    samples: list[dict[str, Any]],
+    base_train_y: np.ndarray,
+    max_ratio: float,
+) -> dict[str, float]:
+    base_counts = np.bincount(base_train_y, minlength=len(CLASS_NAMES)).astype(int)
+    batch_counts = np.zeros(len(CLASS_NAMES), dtype=int)
+    for sample in samples:
+        batch_counts[LABEL_TO_ID[sample["verified_label"]]] += 1
+
+    ratios: dict[str, float] = {}
+    violations = []
+    for idx, name in enumerate(CLASS_NAMES):
+        denom = max(1, int(base_counts[idx]))
+        ratio = float(batch_counts[idx] / denom)
+        ratios[name] = ratio
+        if ratio > max_ratio:
+            violations.append(
+                f"{name}: {batch_counts[idx]}/{denom}={ratio:.4f} > {max_ratio:.4f}"
+            )
+
+    if violations:
+        raise RuntimeError(
+            "Retraining batch exceeds the per-class size gate: " + "; ".join(violations)
+        )
+
+    return ratios
+
+
 def fine_tune_l2b(
     base_checkpoint: Path,
     base_train_x: Path,
@@ -191,6 +220,11 @@ def fine_tune_l2b(
     model = build_model_from_checkpoint(base_checkpoint).to(device)
 
     baseline_f1 = evaluate_macro_f1(model, X_val, y_val, device)
+    baseline_holdout_pred = predict_tokens(model, X_holdout, device)
+    baseline_holdout_accuracy = float(np.mean(baseline_holdout_pred == y_holdout))
+    baseline_holdout_f1 = float(
+        f1_score(y_holdout, baseline_holdout_pred, average="macro", zero_division=0)
+    )
 
     loader = torch.utils.data.DataLoader(
         torch.utils.data.TensorDataset(
@@ -245,6 +279,9 @@ def fine_tune_l2b(
 
     holdout_pred = predict_tokens(model, X_holdout, device)
     holdout_accuracy = float(np.mean(holdout_pred == y_holdout))
+    holdout_f1 = float(
+        f1_score(y_holdout, holdout_pred, average="macro", zero_division=0)
+    )
 
     checkpoint_path = output_dir / "layer2b_bigru_checkpoint.pt"
     torch.save(
@@ -283,7 +320,10 @@ def fine_tune_l2b(
     return {
         "baseline_val_macro_f1": baseline_f1,
         "selected_val_macro_f1": best_val_f1,
+        "baseline_holdout_accuracy": baseline_holdout_accuracy,
+        "baseline_holdout_macro_f1": baseline_holdout_f1,
         "holdout_accuracy": holdout_accuracy,
+        "holdout_macro_f1": holdout_f1,
         "fit_samples": len(fit_samples),
         "holdout_samples": len(holdout_samples),
         "oversample_factor": oversample_factor,
@@ -365,9 +405,17 @@ def calibrate_l2a(
         key=lambda row: (row[2], -row[1], -row[0]),
     )
 
+    threshold_before = None
+    if output_path.exists():
+        try:
+            threshold_before = float(output_path.read_text(encoding="utf-8").strip())
+        except ValueError:
+            threshold_before = None
+
     output_path.write_text(f"{threshold:.8f}\n", encoding="utf-8")
 
     return {
+        "threshold_before": threshold_before,
         "threshold_after": threshold,
         "validation_fpr": fpr,
         "validation_recall": recall,
@@ -405,6 +453,7 @@ def main() -> None:
     parser.add_argument("--oversample-factor", type=int, default=5)
     parser.add_argument("--val-f1-tolerance", type=float, default=0.005)
     parser.add_argument("--l2a-fpr-cap", type=float, default=0.05)
+    parser.add_argument("--max-batch-ratio", type=float, default=0.10)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -414,6 +463,8 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     batch_meta, samples = load_batch(args.batch, args.min_samples)
+    base_y_for_gate = np.load(args.base_train_y).astype(np.int64)
+    batch_ratios = validate_batch_ratio(samples, base_y_for_gate, args.max_batch_ratio)
     fit_samples, holdout_samples = split_batch(samples, args.holdout_fraction, args.seed)
 
     copy_base_artifacts(args.base_model_dir, args.output_dir)
@@ -450,6 +501,7 @@ def main() -> None:
         "input_samples": len(samples),
         "fit_samples": len(fit_samples),
         "holdout_samples": len(holdout_samples),
+        "batch_class_ratios": batch_ratios,
         "l2a": l2a_report,
         "l2b": l2b_report,
         "selective_escalation_threshold_changed": False,
