@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}WAF-ML — Live Simulator{% endblock %}
+{% set active = "simulator" %}
+
+{% block head %}
+<style>
+.sim-wrap { display:grid; grid-template-columns:280px 1fr; gap:1rem; }
+@media(max-width:900px){.sim-wrap{grid-template-columns:1fr}}
+.scenario-list { display:flex; flex-direction:column; gap:.5rem; }
+.scenario-btn { text-align:left; padding:.75rem 1rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); cursor:pointer; font-family:var(--font-mono); color:var(--text); }
+.scenario-btn:hover,.scenario-btn.active { border-color:var(--amber); background:var(--bg-hover); }
+.scenario-btn small { display:block; color:var(--text-dim); margin-top:.2rem; }
+.sim-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; box-shadow:0 1px 3px rgba(20,22,26,.05); }
+.request-box { background:#111827; color:#e5e7eb; padding:1rem; border-radius:var(--radius); margin-bottom:1rem; overflow:auto; }
+.request-line { color:#fbbf24; }
+.pipeline { display:grid; grid-template-columns:repeat(4,1fr); gap:.6rem; margin:1rem 0; }
+@media(max-width:900px){.pipeline{grid-template-columns:1fr 1fr}}
+.node { border:1px solid var(--border); border-radius:var(--radius); padding:.8rem; min-height:92px; position:relative; background:var(--bg-card); }
+.node .name { font-size:.7rem; color:var(--text-dim); text-transform:uppercase; }
+.node .state { font-size:1rem; font-weight:600; margin-top:.4rem; }
+.node.done { border-color:var(--green); }
+.node.escalated { border-color:var(--amber); }
+.node.blocked { border-color:var(--red); }
+.result-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.6rem; }
+@media(max-width:900px){.result-grid{grid-template-columns:1fr 1fr}}
+.metric { padding:.75rem; border:1px solid var(--border); border-radius:var(--radius); }
+.metric .k { font-size:.68rem; color:var(--text-dim); text-transform:uppercase; }
+.metric .v { font-size:1rem; margin-top:.2rem; word-break:break-all; }
+.decision { margin-top:1rem; padding:1rem; border-radius:var(--radius); text-align:center; font-size:1.35rem; font-weight:700; border:1px solid var(--border); }
+.decision.allow { color:var(--green); background:#f0fdf4; border-color:var(--green-dim); }
+.decision.log { color:var(--amber); background:#fffbeb; border-color:var(--amber-dim); }
+.decision.block { color:var(--red); background:#fef2f2; border-color:var(--red-dim); }
+.sim-status { font-size:.75rem; color:var(--text-dim); margin-top:.7rem; min-height:1.2rem; }
+.raw { margin-top:1rem; }
+.raw pre { max-height:220px; overflow:auto; font-size:.7rem; white-space:pre-wrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Live WAF Simulator</h1>
+  <span class="page-sub">Real inference via /api/traffic/analyze</span>
+</div>
+
+<div class="sim-wrap">
+  <section class="sim-card">
+    <div class="card-header"><h2>Presentation Scenarios</h2></div>
+    <div class="scenario-list">
+      <button class="scenario-btn active" data-id="normal">
+        Normal request
+        <small>Expected fast ALLOW / L2A</small>
+      </button>
+      <button class="scenario-btn" data-id="sqli">
+        SQL injection
+        <small>Signature / model detection</small>
+      </button>
+      <button class="scenario-btn" data-id="xss">
+        XSS
+        <small>Script payload detection</small>
+      </button>
+      <button class="scenario-btn" data-id="lfi">
+        LFI / traversal
+        <small>Controlled file-path payload</small>
+      </button>
+      <button class="scenario-btn" data-id="cmdi">
+        Command injection
+        <small>Controlled system parameter</small>
+      </button>
+      <button class="scenario-btn" data-id="custom">
+        Custom request
+        <small>Edit URL/body below</small>
+      </button>
+    </div>
+    <button id="run" class="action-btn" style="width:100%;margin:1rem 0 0;padding:.65rem;">▶ RUN THROUGH WAF</button>
+    <div id="status" class="sim-status">Ready.</div>
+  </section>
+
+  <section>
+    <div class="sim-card">
+      <div class="card-header"><h2>Incoming Request</h2></div>
+      <div class="request-box">
+        <div id="methodLine" class="request-line">GET /api/products/search?q=laptop</div>
+        <div id="bodyLine"></div>
+      </div>
+      <div style="display:grid;gap:.6rem;">
+        <label class="dim">URL
+          <input id="url" value="/api/products/search?q=laptop" style="width:100%;padding:.55rem;margin-top:.25rem;border:1px solid var(--border);border-radius:4px;font-family:var(--font-mono);">
+        </label>
+        <label class="dim">Method
+          <select id="method" style="padding:.55rem;margin-top:.25rem;border:1px solid var(--border);border-radius:4px;font-family:var(--font-mono);">
+            <option>GET</option><option>POST</option>
+          </select>
+        </label>
+        <label class="dim">Body
+          <textarea id="body" rows="3" style="width:100%;padding:.55rem;margin-top:.25rem;border:1px solid var(--border);border-radius:4px;font-family:var(--font-mono);"></textarea>
+        </label>
+      </div>
+    </div>
+
+    <div class="sim-card" style="margin-top:1rem;">
+      <div class="card-header"><h2>Pipeline Trace</h2></div>
+      <div class="pipeline">
+        <div id="n1" class="node"><div class="name">Layer 1</div><div class="state">Waiting</div></div>
+        <div id="n2" class="node"><div class="name">Layer 2A</div><div class="state">Waiting</div></div>
+        <div id="n3" class="node"><div class="name">Layer 2B</div><div class="state">Waiting</div></div>
+        <div id="n4" class="node"><div class="name">Threat scorer</div><div class="state">Waiting</div></div>
+      </div>
+      <div class="result-grid">
+        <div class="metric"><div class="k">Decision</div><div id="decisionMetric" class="v">—</div></div>
+        <div class="metric"><div class="k">Label</div><div id="labelMetric" class="v">—</div></div>
+        <div class="metric"><div class="k">Score</div><div id="scoreMetric" class="v">—</div></div>
+        <div class="metric"><div class="k">Latency</div><div id="latencyMetric" class="v">—</div></div>
+        <div class="metric"><div class="k">L2A score</div><div id="l2aMetric" class="v">—</div></div>
+        <div class="metric"><div class="k">L2B confidence</div><div id="confMetric" class="v">—</div></div>
+        <div class="metric"><div class="k">L2A contribution</div><div id="l2aContrib" class="v">—</div></div>
+        <div class="metric"><div class="k">L2B contribution</div><div id="l2bContrib" class="v">—</div></div>
+      </div>
+      <div id="decision" class="decision">RUN A REQUEST</div>
+      <div class="raw"><div class="card-header"><h2>Raw API response</h2></div><pre id="raw">{}</pre></div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const scenarios = {
+  normal: {method:"GET", url:"/api/products/search?q=laptop", body:""},
+  sqli:   {method:"GET", url:"/api/products/search?q=%27%20OR%20%271%27=%271", body:""},
+  xss:    {method:"GET", url:"/api/reviews?comment=%3Cscript%3Ealert(1)%3C%2Fscript%3E", body:""},
+  lfi:    {method:"GET", url:"/api/files/view?path=../../etc/passwd", body:""},
+  cmdi:   {method:"GET", url:"/api/system/check?value=%7C%20whoami", body:""},
+  custom: {method:"GET", url:"/api/products/search?q=test", body:""}
+};
+
+const $ = id => document.getElementById(id);
+document.querySelectorAll(".scenario-btn").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".scenario-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const s = scenarios[btn.dataset.id];
+    $("method").value=s.method; $("url").value=s.url; $("body").value=s.body;
+    renderRequest();
+  };
+});
+
+["method","url","body"].forEach(id => $(id).addEventListener("input", renderRequest));
+function renderRequest(){
+  $("methodLine").textContent = $("method").value + " " + $("url").value;
+  $("bodyLine").textContent = $("body").value ? $("body").value : "";
+}
+
+function resetNodes(){
+  ["n1","n2","n3","n4"].forEach(id => {
+    const n=$(id); n.className="node"; n.querySelector(".state").textContent="Waiting";
+  });
+}
+function setNode(id,state,cls="done"){ const n=$(id); n.className="node "+cls; n.querySelector(".state").textContent=state; }
+
+async function run(){
+  $("status").textContent="Sending request through the actual ML pipeline…";
+  $("run").disabled=true; resetNodes();
+  $("decision").className="decision"; $("decision").textContent="ANALYZING…";
+  try{
+    const payload={url:$("url").value,method:$("method").value,headers:{"user-agent":"WAF-ML-Simulator"},body:$("body").value,ip:"127.0.0.1"};
+    const r=await fetch("/api/traffic/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const d=await r.json();
+    setNode("n1", d.layer==="L1" ? "BLOCKED" : "PASS", d.layer==="L1" ? "blocked":"done");
+    if(d.layer==="L1"){
+      setNode("n2","NOT REACHED",""); setNode("n3","NOT REACHED",""); setNode("n4","FINAL","blocked");
+    } else {
+      setNode("n2", d.layer==="L2A" ? "NORMAL / STOP" : "ANOMALY → ESCALATE", d.layer==="L2A" ? "done":"escalated");
+      setNode("n3", d.layer==="L2B" ? "CLASSIFIED" : "NOT REACHED", d.layer==="L2B" ? "done":"");
+      setNode("n4", "SCORE "+d.score, d.decision==="block"?"blocked":d.decision==="log"?"escalated":"done");
+    }
+    $("decisionMetric").textContent=d.decision;
+    $("labelMetric").textContent=d.label;
+    $("scoreMetric").textContent=d.score;
+    $("latencyMetric").textContent=d.latency_ms+" ms";
+    $("l2aMetric").textContent=d.l2a_score ?? "—";
+    $("confMetric").textContent=d.confidence ?? "—";
+    $("l2aContrib").textContent=d.l2a_contrib ?? "—";
+    $("l2bContrib").textContent=d.l2b_contrib ?? "—";
+    $("decision").className="decision "+d.decision;
+    $("decision").textContent=d.decision.toUpperCase();
+    $("raw").textContent=JSON.stringify(d,null,2);
+    $("status").textContent="Completed. Request ID: "+d.request_id;
+  }catch(e){
+    $("decision").className="decision block"; $("decision").textContent="SIMULATOR ERROR";
+    $("status").textContent=e.toString();
+  }finally{$("run").disabled=false;}
+}
+$("run").onclick=run;
+renderRequest();
+</script>
+{% endblock %}
