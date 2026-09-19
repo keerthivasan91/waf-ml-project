@@ -586,7 +586,7 @@ The original NB06 baseline config (`L2B_CONF_MULTIPLIER=50`, escalating on L2A's
 
 ## Known Issues & Caveats
 
-**`middleware.rate_limiter`'s `limiter` object is configured but not enforced.** `app/main.py` registers a `RateLimitExceeded` handler and sets `app.state.limiter`, but never adds `SlowAPIMiddleware` or a per-route `@limiter.limit(...)` decorator. `RATE_LIMIT_PER_MIN` currently has no effect — you won't see 429s regardless of request rate. `test_traffic.py` still handles 429 with backoff so it's correct once this gets wired up.
+**Rate limiting is enabled at the FastAPI application level.** `app/main.py` installs `SlowAPIMiddleware` and the limiter uses `RATE_LIMIT_PER_MIN` as its default limit. `test_traffic.py` handles HTTP 429 responses with Retry-After backoff so bulk demonstrations remain stable.
 
 **L2B can be confidently wrong on out-of-distribution inputs.** A bare path with no query parameters (e.g. `/hello`) was observed scoring `other_attack` at 99%+ confidence and getting blocked. HttpParamsDataset is built around requests *with* parameters, so param-less paths are likely rare-to-absent in training — a classic overconfident-on-OOD failure mode, not a pipeline bug. Worth augmenting L2B's training set with param-less normal examples before the next retrain if this matters for your deployment.
 
