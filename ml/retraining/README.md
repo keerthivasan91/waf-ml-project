@@ -1,4 +1,4 @@
-# Offline adaptive retraining
+# Adaptive retraining
 
 This is the offline stage of the WAF feedback loop.
 
@@ -13,7 +13,7 @@ Download the resulting batch from:
 
 /api/feedback/retrain-batches/{batch_id}/export
 
-## 2. Prepare Kaggle or Colab
+## 2. Prepare the local machine
 
 You need:
 
@@ -23,27 +23,27 @@ You need:
 - the frozen original L2A normal and attack validation arrays
 - the currently deployed model artifacts
 
-The offline script deliberately consumes the frozen validation data. It does
+The local script deliberately consumes the frozen validation data. It does
 not silently re-split the original benchmark.
 
 ## 3. Install training dependencies
 
     pip install numpy scipy scikit-learn pandas torch onnx onnxruntime onnxscript joblib
 
-## 4. Run offline training
+## 4. Run local training
 
 Example:
 
     python -m ml.retraining.offline_retrain \
       --batch waf_retrain_BATCH_ID.json \
-      --base-checkpoint /kaggle/input/waf-checkpoint/layer2b_bigru_checkpoint.pt \
+      --base-checkpoint ml/retraining_artifacts/base/layer2b_bigru_checkpoint.pt \
       --base-model-dir ml/exported_models \
-      --base-train-x /kaggle/input/hiwaf-split-v1/data/splits/l2b_train_X_tokens_sqli8k.npy \
-      --base-train-y /kaggle/input/hiwaf-split-v1/data/splits/l2b_train_y_sqli8k.npy \
-      --val-x /kaggle/input/hiwaf-split-v1/data/splits/l2b_val_X_tokens.npy \
-      --val-y /kaggle/input/hiwaf-split-v1/data/splits/l2b_val_y.npy \
-      --l2a-normal-val /kaggle/input/hiwaf-split-v1/data/splits/l2a_normal_val.npy \
-      --l2a-attack-val /kaggle/input/hiwaf-split-v1/data/splits/l2a_attack_val.npy \
+      --base-train-x ml/retraining_artifacts/base/l2b_train_X_tokens.npy \
+      --base-train-y ml/retraining_artifacts/base/l2b_train_y.npy \
+      --val-x ml/retraining_artifacts/base/l2b_val_X_tokens.npy \
+      --val-y ml/retraining_artifacts/base/l2b_val_y.npy \
+      --l2a-normal-val ml/retraining_artifacts/base/l2a_normal_val.npy \
+      --l2a-attack-val ml/retraining_artifacts/base/l2a_attack_val.npy \
       --max-batch-ratio 0.10 \
       --output-dir ml/exported_models/retrained_BATCH_ID
 
