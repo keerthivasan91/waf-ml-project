@@ -39,7 +39,7 @@
 {% block content %}
 <div class="page-header">
   <h1>Live WAF Simulator</h1>
-  <span class="page-sub">Real inference via /api/traffic/analyze</span>
+  <span class="page-sub">Real end-to-end inference via WAF middleware</span>
 </div>
 
 <div class="sim-wrap">
@@ -129,7 +129,7 @@
 {% block scripts %}
 <script>
 const scenarios = {
-  normal: {method:"GET", url:"/api/products/search?q=laptop", body:""},
+  normal: {method:"GET", url:"/api/products?category=electronics&page=1", body:""},
   sqli:   {method:"GET", url:"/api/products/search?q=%27%20OR%20%271%27=%271", body:""},
   xss:    {method:"GET", url:"/api/reviews?comment=%3Cscript%3Ealert(1)%3C%2Fscript%3E", body:""},
   encoded_xss: {method:"GET", url:"/api/products/search?q=%3Cscript%3Ealert(String.fromCharCode(88,83,83))%3C%2Fscript%3E", body:""},
@@ -163,13 +163,37 @@ function resetNodes(){
 function setNode(id,state,cls="done"){ const n=$(id); n.className="node "+cls; n.querySelector(".state").textContent=state; }
 
 async function run(){
-  $("status").textContent="Sending request through the actual ML pipeline…";
+  $("status").textContent="Sending the request through the real WAF middleware…";
   $("run").disabled=true; resetNodes();
   $("decision").className="decision"; $("decision").textContent="ANALYZING…";
   try{
-    const payload={url:$("url").value,method:$("method").value,headers:{"user-agent":"WAF-ML-Simulator"},body:$("body").value,ip:"127.0.0.1"};
-    const r=await fetch("/api/traffic/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-    const d=await r.json();
+    const method=$("method").value;
+    const url=$("url").value;
+    const body=$("body").value;
+    const options={method,headers:{"Content-Type":"application/x-www-form-urlencoded"}};
+    if(method!=="GET" && method!=="HEAD") options.body=body;
+
+    // Use the normal application URL so WAFMiddleware performs the actual
+    // interception, inference, scoring, and forwarding to dummy_app.
+    const r=await fetch(url,options);
+    const h=name => r.headers.get(name);
+    const d={
+      request_id:h("X-WAF-Request-ID") || "—",
+      decision:h("X-WAF-Decision") || (r.status===403 ? "block" : "allow"),
+      score:Number(h("X-WAF-Score") ?? 0),
+      label:h("X-WAF-Label") || "unknown",
+      layer:h("X-WAF-Layer") || "unknown",
+      confidence:h("X-WAF-Confidence")===null ? null : Number(h("X-WAF-Confidence")),
+      l2a_score:h("X-WAF-L2A-Score")===null ? null : Number(h("X-WAF-L2A-Score")),
+      latency_ms:h("X-WAF-Latency-Ms")===null ? null : Number(h("X-WAF-Latency-Ms")),
+      l2a_contrib:null,
+      l2b_contrib:null,
+      http_status:r.status
+    };
+
+    if(d.l2a_score!==null) d.l2a_contrib=Number(Math.min(50,d.l2a_score*15).toFixed(2));
+    d.l2b_contrib=(d.label==="normal" || d.confidence===null) ? 0 : Number((d.confidence*50).toFixed(2));
+
     setNode("n1", d.layer==="L1" ? "BLOCKED" : "PASS", d.layer==="L1" ? "blocked":"done");
     if(d.layer==="L1"){
       setNode("n2","NOT REACHED",""); setNode("n3","NOT REACHED",""); setNode("n4","FINAL","blocked");
@@ -178,18 +202,19 @@ async function run(){
       setNode("n3", d.layer==="L2B" ? "CLASSIFIED" : "NOT REACHED", d.layer==="L2B" ? "done":"");
       setNode("n4", "SCORE "+d.score, d.decision==="block"?"blocked":d.decision==="log"?"escalated":"done");
     }
+
     $("decisionMetric").textContent=d.decision;
     $("labelMetric").textContent=d.label;
     $("scoreMetric").textContent=d.score;
-    $("latencyMetric").textContent=d.latency_ms+" ms";
-    $("l2aMetric").textContent=d.l2a_score ?? "—";
-    $("confMetric").textContent=d.confidence ?? "—";
-    $("l2aContrib").textContent=d.l2a_contrib ?? "—";
-    $("l2bContrib").textContent=d.l2b_contrib ?? "—";
+    $("latencyMetric").textContent=d.latency_ms===null ? "—" : d.latency_ms+" ms";
+    $("l2aMetric").textContent=d.l2a_score===null ? "—" : d.l2a_score;
+    $("confMetric").textContent=d.confidence===null ? "—" : d.confidence;
+    $("l2aContrib").textContent=d.l2a_contrib===null ? "—" : d.l2a_contrib;
+    $("l2bContrib").textContent=d.l2b_contrib===null ? "—" : d.l2b_contrib;
     $("decision").className="decision "+d.decision;
     $("decision").textContent=d.decision.toUpperCase();
     $("raw").textContent=JSON.stringify(d,null,2);
-    $("status").textContent="Completed. Request ID: "+d.request_id;
+    $("status").textContent="Completed. HTTP "+d.http_status+" | Request ID: "+d.request_id;
   }catch(e){
     $("decision").className="decision block"; $("decision").textContent="SIMULATOR ERROR";
     $("status").textContent=e.toString();
