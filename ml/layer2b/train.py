@@ -83,6 +83,12 @@ def main():
         all_models,
     )
 
+    # Keep a trusted PyTorch checkpoint for future offline adaptive
+    # retraining. The deployed service still consumes ONNX; the checkpoint is
+    # only the starting point for a controlled offline fine-tuning cycle.
+    if winner_name == "gru" and hasattr(winner_model, "save_weights"):
+        winner_model.save_weights(str(EXPORT_DIR / "layer2b_bigru_checkpoint.pt"))
+
     # ── Export winner to ONNX ─────────────────────────────────────────────────
     print(f"\n[train] Exporting winner: {winner_name}")
     winner_model.export_onnx(str(EXPORT_DIR / "layer2b_best.onnx"))
