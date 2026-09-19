@@ -1,14 +1,42 @@
-/* WAF-ML SOC console interactions */
+/* WAF-ML SOC console theme + interactions */
+(function(){
+  const root=document.documentElement;
+  const key="waf-theme";
+  const button=document.getElementById("themeToggle");
+  try{
+    const saved=localStorage.getItem(key);
+    if(saved==="light" || saved==="dark") root.dataset.theme=saved;
+  }catch(e){}
+  function syncTheme(){
+    if(!button) return;
+    const light=root.dataset.theme==="light";
+    const sun=button.querySelector(".theme-toggle-icon--sun");
+    const moon=button.querySelector(".theme-toggle-icon--moon");
+    if(sun) sun.style.display=light?"inline":"none";
+    if(moon) moon.style.display=light?"none":"inline";
+    button.title=light?"Switch to dark mode":"Switch to light mode";
+    button.setAttribute("aria-label",button.title);
+    button.setAttribute("aria-pressed",light?"true":"false");
+  }
+  if(button){
+    syncTheme();
+    button.addEventListener("click",()=>{
+      const light=root.dataset.theme==="light";
+      root.dataset.theme=light?"dark":"light";
+      try{localStorage.setItem(key,root.dataset.theme);}catch(e){}
+      syncTheme();
+    });
+  }
+})();
+
 document.addEventListener("DOMContentLoaded",()=>{
   const path=window.location.pathname;
   document.querySelectorAll(".side-link").forEach(link=>{
     if(link.getAttribute("href")===path) link.classList.add("active");
   });
-
   const clock=document.getElementById("topbarTime");
   const tick=()=>{if(clock) clock.textContent=new Date().toLocaleTimeString([], {hour12:false});};
   tick(); setInterval(tick,1000);
-
   document.querySelectorAll(".stat-value").forEach(el=>{
     const raw=parseInt(el.textContent.replace(/[^0-9]/g,""),10);
     if(!Number.isNaN(raw)&&raw>0){
