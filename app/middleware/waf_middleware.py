@@ -61,6 +61,7 @@ class WAFMiddleware(BaseHTTPMiddleware):
             "/api/docs",
             "/api/redoc",
             "/dashboard",
+            "/simulator",
             "/static",
             "/openapi.json",
             "/favicon.ico",
@@ -209,11 +210,9 @@ class WAFMiddleware(BaseHTTPMiddleware):
                     request_id=request_id,
                     decision="allow",
                     score=0,
-                    label="normal",
-                    layer="L2A",
-                    latency_ms=ms,
-                    l2a_score=l2a_score,
-                    confidence=1.0,
+                    label="feature_extraction_error",
+                    layer="FAIL_OPEN",
+                    latency_ms=round((time.perf_counter() - t0) * 1000, 2),
                 ),
             )
 
@@ -285,9 +284,11 @@ class WAFMiddleware(BaseHTTPMiddleware):
                     request_id=request_id,
                     decision="allow",
                     score=0,
-                    label="feature_extraction_error",
-                    layer="FAIL_OPEN",
-                    latency_ms=round((time.perf_counter() - t0) * 1000, 2),
+                    label="normal",
+                    layer="L2A",
+                    latency_ms=ms,
+                    l2a_score=l2a_score,
+                    confidence=1.0,
                 ),
             )
 
