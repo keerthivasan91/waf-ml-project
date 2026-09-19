@@ -44,6 +44,7 @@ Example:
       --val-y /kaggle/input/hiwaf-split-v1/data/splits/l2b_val_y.npy \
       --l2a-normal-val /kaggle/input/hiwaf-split-v1/data/splits/l2a_normal_val.npy \
       --l2a-attack-val /kaggle/input/hiwaf-split-v1/data/splits/l2a_attack_val.npy \
+      --max-batch-ratio 0.10 \
       --output-dir ml/exported_models/retrained_BATCH_ID
 
 The script:
@@ -52,7 +53,9 @@ The script:
 2. fine-tunes Layer 2B from the trusted checkpoint;
 3. selects the checkpoint using the frozen validation set;
 4. refuses deployment when validation macro-F1 falls beyond the configured tolerance;
-5. evaluates held-out feedback samples after model selection;
+5. enforces the 10% per-class feedback/training-size gate used by the adaptive
+   retraining design;
+6. evaluates held-out feedback samples after model selection;
 6. recalibrates Layer 2A's own operating threshold;
 7. keeps the selective escalation threshold unchanged;
 8. exports a new Layer 2B ONNX model, checkpoint, threshold and report.
