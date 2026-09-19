@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 from app.db.collections import (request_logs, threat_events,
                              feedback_queue, health_snapshots,
-                             health_audit_log, retrain_log)
+                             health_audit_log, retrain_log, retrain_batches)
 
 # NOTE: Motor's insert_one() mutates the dict you pass it in place,
 # injecting a raw (non-JSON-serializable) ObjectId into doc["_id"].
