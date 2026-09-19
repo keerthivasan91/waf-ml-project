@@ -99,8 +99,9 @@ from the current model feature vector. This keeps live feature distribution
 aligned with the deployed model's training distribution.
 
 `scaler_l2a.pkl` (a `StandardScaler`) is fit **once**, on the 70%
-train split only, and reused for both L2A and L2B's dense-feature
-input — never refit at inference time. A missing or mismatched scaler
+train split only, and reused for the L2A dense feature input — never refit at
+inference time. Layer 2B's accepted BiGRU path consumes character tokens,
+not the scaled numeric vector. A missing or mismatched scaler
 was a real bug encountered during development: unscaled features produce
 L2A reconstruction-error scores in the 6-10 range instead of the expected
 ~0.001-0.01, effectively breaking anomaly detection silently (every request
