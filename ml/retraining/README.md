@@ -1,6 +1,6 @@
 # Adaptive retraining
 
-This is the offline stage of the WAF feedback loop.
+This is the local-machine training stage of the WAF feedback loop.
 
 ## 1. Prepare a batch
 
@@ -60,20 +60,17 @@ The script:
 7. keeps the selective escalation threshold unchanged;
 8. exports a new Layer 2B ONNX model, checkpoint, threshold and report.
 
-## 5. Promote only after review
+## 5. Dashboard local retraining
 
-Do not overwrite production artifacts immediately.
+The preferred local workflow is now:
 
-Inspect retraining_report.json first. Then copy the validated artifacts to the
-deployment ml/exported_models directory:
+1. Click "Prepare Retraining Batch".
+2. Click "Start Local Retraining".
+3. FastAPI starts the training process on the same machine.
+4. The worker validates the result, backs up the active artifacts, promotes them,
+   and hot-reloads the runtime models when `LOCAL_RETRAIN_AUTO_PROMOTE=true`.
 
-- layer2b_best.onnx
-- layer2b_bigru_checkpoint.pt
-- layer2a_best.onnx
-- layer2a_best.onnx.data (when present)
-- layer2a_best_threshold.txt
-- scaler_l2a.pkl
+Set `LOCAL_RETRAIN_AUTO_PROMOTE=false` when you want to inspect
+`retraining_report.json` and promote the artifacts manually.
 
-Then use "Reload Models" on /dashboard/retraining.
-
-This offline job never changes the selective escalation threshold.
+The job never changes the selective escalation threshold.
