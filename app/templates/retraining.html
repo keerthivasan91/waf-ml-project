@@ -184,8 +184,9 @@ async function triggerRetrain() {
     if (!r.ok) throw new Error(JSON.stringify(d));
 
     if (d.status === 'skipped') {
-      showResult(true, 'Retraining not queued: ' + (d.n_samples ?? 0) +
-        ' verified samples available; minimum is 200.');
+      const available = d.n_clean ?? d.n_samples ?? 0;
+      showResult(true, 'Retraining not queued: ' + available +
+        ' clean samples available; minimum is 200. Reason=' + (d.reason ?? 'gate'));
     } else {
       showResult(true, 'Retraining batch queued: raw=' + (d.n_raw ?? 0) +
         ', clean=' + (d.n_clean ?? 0) + ', rejected=' + (d.n_rejected ?? 0) +
