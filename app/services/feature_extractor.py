@@ -33,6 +33,8 @@ if ML_PATH not in sys.path:
 # ---------------------------------------------------------------------
 from ml.feature_engineering.extractor import extract_features, to_vector  # noqa: E402
 from ml.feature_engineering.tokenizer import CharTokenizer                # noqa: E402
+from ml.feature_engineering.normalizer import Normalizer                 # noqa: E402
+
 
 # The deployed models were trained with headers={} for every row because the
 # dataset parser did not capture HTTP headers. Keep live ML input identical to
@@ -46,7 +48,6 @@ def normalize_request_for_ml(request: dict) -> dict:
         "headers": {},
         "body": request.get("body", ""),
     }
-from ml.feature_engineering.normalizer import Normalizer           # noqa: E402
 
 # ---------------------------------------------------------------------
 # Shared tokenizer / normalizer
