@@ -145,3 +145,18 @@ html[data-theme="light"] .sidebar-toggle:hover{color:#152238;border-color:#0891b
   html[data-sidebar="collapsed"] .side-link{justify-content:flex-start;gap:10px;width:auto;padding:0 10px}
   html[data-sidebar="collapsed"] .sidebar-label{display:none}
 }
+
+/* Shared admin controls */
+.admin-control-card{margin-top:14px}
+.admin-action-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem}
+.admin-action{appearance:none;text-decoration:none;text-align:left;border:1px solid var(--line2);border-radius:10px;background:#0b1425;color:var(--text);padding:1rem;display:flex;flex-direction:column;gap:.45rem;cursor:pointer;transition:.18s ease;font:inherit}
+.admin-action:hover{transform:translateY(-1px);border-color:var(--cyan);background:#0e1a30;box-shadow:0 10px 24px rgba(0,0,0,.16)}
+.admin-action strong{font:600 .9rem var(--head)}
+.admin-action span{font-size:.68rem;color:var(--muted);line-height:1.5}
+.admin-action em{font:700 .63rem var(--mono);color:var(--cyan);font-style:normal;margin-top:auto}
+.admin-action--warn{border-color:rgba(245,158,11,.28)}
+.admin-action--warn:hover{border-color:var(--amber)}
+html[data-theme="light"] .admin-action{background:#fff;color:var(--text);border-color:#d9e3ee}
+html[data-theme="light"] .admin-action:hover{background:#eef8fb;border-color:#0891b2}
+@media(max-width:1100px){.admin-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.admin-action-grid{grid-template-columns:1fr}}
