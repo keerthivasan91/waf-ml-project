@@ -58,6 +58,10 @@
         XSS
         <small>Script payload detection</small>
       </button>
+      <button class="scenario-btn" data-id="encoded_xss">
+        Encoded XSS
+        <small>Designed to exercise deeper inspection</small>
+      </button>
       <button class="scenario-btn" data-id="lfi">
         LFI / traversal
         <small>Controlled file-path payload</small>
@@ -128,6 +132,7 @@ const scenarios = {
   normal: {method:"GET", url:"/api/products/search?q=laptop", body:""},
   sqli:   {method:"GET", url:"/api/products/search?q=%27%20OR%20%271%27=%271", body:""},
   xss:    {method:"GET", url:"/api/reviews?comment=%3Cscript%3Ealert(1)%3C%2Fscript%3E", body:""},
+  encoded_xss: {method:"GET", url:"/api/products/search?q=%3Cscript%3Ealert(String.fromCharCode(88,83,83))%3C%2Fscript%3E", body:""},
   lfi:    {method:"GET", url:"/api/files/view?path=../../etc/passwd", body:""},
   cmdi:   {method:"GET", url:"/api/system/check?value=%7C%20whoami", body:""},
   custom: {method:"GET", url:"/api/products/search?q=test", body:""}
