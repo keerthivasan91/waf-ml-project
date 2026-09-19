@@ -22,6 +22,7 @@ import argparse
 import hashlib
 import json
 import random
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -45,8 +46,7 @@ LABEL_TO_ID["false_positive"] = 0
 
 
 def canonical_family(url: str) -> str:
-    text = (url or "").lower()
-    text = "".join(text.split("%")[:1])
+    text = re.sub(r"%[0-9a-fA-F]{2}", "", (url or "").lower())
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
 
 
