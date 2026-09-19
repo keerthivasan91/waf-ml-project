@@ -12,29 +12,39 @@
   {% block head %}{% endblock %}
 </head>
 <body>
+  <header class="global-header">
+    <a href="/dashboard" class="header-brand">
+      <span class="header-brand-mark"><span></span><span></span><span></span></span>
+      <span class="header-brand-copy"><strong>WAF<span>-ML</span></strong><small>HYBRID INTELLIGENT FIREWALL</small></span>
+    </a>
+
+    <div class="header-center">
+      <span class="header-context">SECURITY OPERATIONS</span>
+      <span class="header-slash">/</span>
+      <span class="header-page">
+        {% if active == 'dashboard' %}THREAT OVERVIEW
+        {% elif active == 'logs' %}LIVE TRAFFIC
+        {% elif active == 'threats' %}THREAT INTELLIGENCE
+        {% elif active == 'feedback' %}ANALYST REVIEW
+        {% elif active == 'models' %}MODEL REGISTRY
+        {% elif active == 'simulator' %}ATTACK SIMULATOR
+        {% else %}CONTROL PLANE{% endif %}
+      </span>
+    </div>
+
+    <div class="header-actions">
+      <div class="header-health">
+        <span class="status-dot"></span>
+        <span>WAF ONLINE</span>
+      </div>
+      <span class="header-time" id="topbarTime">--:--:--</span>
+      <a href="/api/docs" target="_blank" class="header-docs">API ↗</a>
+    </div>
+  </header>
+
   <div class="app-shell">
     {% include "partials/nav.html" %}
     <div class="app-content">
-      <header class="topbar">
-        <div class="topbar-context">
-          <span class="topbar-eyebrow">SECURITY OPERATIONS</span>
-          <span class="topbar-separator">/</span>
-          <span class="topbar-page">
-            {% if active == 'dashboard' %}Threat Overview
-            {% elif active == 'logs' %}Live Traffic
-            {% elif active == 'threats' %}Threat Intelligence
-            {% elif active == 'feedback' %}Analyst Review
-            {% elif active == 'models' %}Model Registry
-            {% elif active == 'simulator' %}Attack Simulator
-            {% else %}WAF Control Plane{% endif %}
-          </span>
-        </div>
-        <div class="topbar-actions">
-          <span class="topbar-live"><span class="status-dot"></span> LIVE</span>
-          <span class="topbar-time" id="topbarTime">--:--:--</span>
-        </div>
-      </header>
-
       <main class="main">
         {% block content %}{% endblock %}
       </main>
