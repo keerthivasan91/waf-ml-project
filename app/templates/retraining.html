@@ -41,7 +41,7 @@
     </div>
   </div>
 
-  <div class="admin-action-grid admin-action-grid--five">
+  <div class="admin-action-grid admin-action-grid--six">
     <a class="admin-action" href="/dashboard/feedback">
       <strong>Review Queue</strong>
       <span>Complete pending human labels and mark poisoning samples.</span>
@@ -62,8 +62,14 @@
 
     <button class="admin-action admin-action--warn" onclick="triggerRetrain()">
       <strong>Prepare Retraining Batch</strong>
-      <span>Run the anti-poisoning checks on verified feedback. Full model training remains offline.</span>
+      <span>Run the anti-poisoning checks on verified feedback. Local PyTorch training is ready to start.</span>
       <em>Run validation →</em>
+    </button>
+
+    <button class="admin-action admin-action--warn" onclick="startLocalRetrain()">
+      <strong>Start Local Retraining</strong>
+      <span>Fine-tune the validated batch on this machine, back up the active model, and hot-reload it.</span>
+      <em>Start training →</em>
     </button>
 
     <button class="admin-action" onclick="reloadModels()">
@@ -128,7 +134,7 @@
 <style>
 .admin-action-card{}
 .admin-action-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem}
-.admin-action-grid--five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.admin-action-grid--six{grid-template-columns:repeat(6,minmax(0,1fr))}
 .admin-action{
   appearance:none;text-decoration:none;text-align:left;
   border:1px solid var(--line2);border-radius:10px;background:#0b1425;
@@ -146,7 +152,7 @@
 .admin-action-result.err{border-color:rgba(255,59,92,.35);color:#ff9bad;background:rgba(255,59,92,.06)}
 html[data-theme="light"] .admin-action{background:#fff;color:var(--text);border-color:#d9e3ee}
 html[data-theme="light"] .admin-action:hover{background:#eef8fb;border-color:#0891b2}
-@media(max-width:1300px){.admin-action-grid--five{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1500px){.admin-action-grid--six{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:1100px){.admin-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.admin-action-grid{grid-template-columns:1fr}}
 </style>
