@@ -34,16 +34,16 @@ not silently re-split the original benchmark.
 
 Example:
 
-    python -m ml.retraining.offline_retrain ^
-      --batch waf_retrain_BATCH_ID.json ^
-      --base-checkpoint /kaggle/input/waf-checkpoint/layer2b_bigru_checkpoint.pt ^
-      --base-model-dir ml/exported_models ^
-      --base-train-x /kaggle/input/hiwaf-split-v1/data/splits/l2b_train_X_tokens_sqli8k.npy ^
-      --base-train-y /kaggle/input/hiwaf-split-v1/data/splits/l2b_train_y_sqli8k.npy ^
-      --val-x /kaggle/input/hiwaf-split-v1/data/splits/l2b_val_X_tokens.npy ^
-      --val-y /kaggle/input/hiwaf-split-v1/data/splits/l2b_val_y.npy ^
-      --l2a-normal-val /kaggle/input/hiwaf-split-v1/data/splits/l2a_normal_val.npy ^
-      --l2a-attack-val /kaggle/input/hiwaf-split-v1/data/splits/l2a_attack_val.npy ^
+    python -m ml.retraining.offline_retrain \
+      --batch waf_retrain_BATCH_ID.json \
+      --base-checkpoint /kaggle/input/waf-checkpoint/layer2b_bigru_checkpoint.pt \
+      --base-model-dir ml/exported_models \
+      --base-train-x /kaggle/input/hiwaf-split-v1/data/splits/l2b_train_X_tokens_sqli8k.npy \
+      --base-train-y /kaggle/input/hiwaf-split-v1/data/splits/l2b_train_y_sqli8k.npy \
+      --val-x /kaggle/input/hiwaf-split-v1/data/splits/l2b_val_X_tokens.npy \
+      --val-y /kaggle/input/hiwaf-split-v1/data/splits/l2b_val_y.npy \
+      --l2a-normal-val /kaggle/input/hiwaf-split-v1/data/splits/l2a_normal_val.npy \
+      --l2a-attack-val /kaggle/input/hiwaf-split-v1/data/splits/l2a_attack_val.npy \
       --output-dir ml/exported_models/retrained_BATCH_ID
 
 The script:
