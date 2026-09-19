@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - feat/live-waf-simulator
-  pull_request:
-    branches:
-      - main
 
 jobs:
   ui-tests:
