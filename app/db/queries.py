@@ -68,6 +68,18 @@ async def get_recent_retrain_logs(limit: int = 20) -> list:
     cursor = retrain_log().find({}, {"_id": 0}).sort("timestamp", -1).limit(limit)
     return await cursor.to_list(length=limit)
 
+async def get_latest_retrain_batch() -> dict | None:
+    cursor = retrain_batches().find({}, {"_id": 0}).sort("created_at", -1).limit(1)
+    rows = await cursor.to_list(length=1)
+    return rows[0] if rows else None
+
+
+async def get_retrain_batch(batch_id: str) -> dict | None:
+    return await retrain_batches().find_one(
+        {"batch_id": batch_id},
+        {"_id": 0},
+    )
+
 async def get_recent_health_audits(limit: int = 20) -> list:
     cursor = health_audit_log().find({}, {"_id": 0}).sort("timestamp", -1).limit(limit)
     return await cursor.to_list(length=limit)
