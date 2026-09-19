@@ -1,21 +1,53 @@
-<!-- app/templates/partials/nav.html -->
-<nav class="nav">
-  <a href="/dashboard" class="nav-brand">
-    <span class="brand-icon">◈</span> WAF-ML
+<aside class="sidebar">
+  <a href="/dashboard" class="brand-block">
+    <span class="brand-mark"><span></span><span></span><span></span></span>
+    <span>
+      <strong>WAF<span>-ML</span></strong>
+      <small>SECURITY CONTROL</small>
+    </span>
   </a>
-  <div class="nav-links">
-    <a href="/dashboard"          class="nav-link {% if active=='dashboard' %}active{% endif %}">Overview</a>
-    <a href="/dashboard/logs"     class="nav-link {% if active=='logs' %}active{% endif %}">Live Logs</a>
-    <a href="/dashboard/threats"  class="nav-link {% if active=='threats' %}active{% endif %}">Threats</a>
-    <a href="/dashboard/feedback" class="nav-link {% if active=='feedback' %}active{% endif %}">Review</a>
-    <a href="/dashboard/models"   class="nav-link {% if active=='models' %}active{% endif %}">Models</a>
-    <a href="/simulator"          class="nav-link {% if active=='simulator' %}active{% endif %}">Simulator</a>
-    <a href="/api/docs" class="nav-link" target="_blank">API ↗</a>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">MONITOR</div>
+    <a href="/dashboard" class="side-link {% if active=='dashboard' %}active{% endif %}">
+      <span class="nav-glyph">OV</span><span>Overview</span>
+    </a>
+    <a href="/dashboard/logs" class="side-link {% if active=='logs' %}active{% endif %}">
+      <span class="nav-glyph">LG</span><span>Live Traffic</span>
+    </a>
+    <a href="/dashboard/threats" class="side-link {% if active=='threats' %}active{% endif %}">
+      <span class="nav-glyph">TH</span><span>Threats</span>
+      <span class="side-link-dot red"></span>
+    </a>
   </div>
-  <div class="nav-right">
-    <span class="nav-version">v{{ version | default('1.0.0') }}</span>
-    <div class="nav-status">
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">RESPONSE</div>
+    <a href="/dashboard/feedback" class="side-link {% if active=='feedback' %}active{% endif %}">
+      <span class="nav-glyph">RV</span><span>Analyst Review</span>
+    </a>
+    <a href="/dashboard/models" class="side-link {% if active=='models' %}active{% endif %}">
+      <span class="nav-glyph">ML</span><span>Model Registry</span>
+    </a>
+    <a href="/simulator" class="side-link {% if active=='simulator' %}active{% endif %}">
+      <span class="nav-glyph">LAB</span><span>Attack Simulator</span>
+      <span class="side-link-badge">LIVE</span>
+    </a>
+  </div>
+
+  <div class="sidebar-spacer"></div>
+
+  <div class="sidebar-status">
+    <div class="sidebar-status-head">
       <span class="status-dot"></span>
+      <span>WAF ONLINE</span>
     </div>
+    <div class="sidebar-status-meta">Models loaded • proxy ready</div>
   </div>
-</nav>
+
+  <a href="/api/docs" class="api-link" target="_blank">
+    <span>API DOCUMENTATION</span><span>↗</span>
+  </a>
+
+  <div class="sidebar-version">v{{ version | default('1.0.0') }}</div>
+</aside>
