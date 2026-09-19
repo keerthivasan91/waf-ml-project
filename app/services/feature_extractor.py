@@ -5,6 +5,11 @@ Uses the same:
 - tokenizer
 - Normalizer
 from ml/ used during training.
+
+Current model contract:
+- Training rows used headers={}.
+- Runtime ML input therefore forces headers={} as well.
+- Real browser headers are preserved only for HTTP forwarding, not model features.
 """
 import os
 import sys
@@ -28,6 +33,19 @@ if ML_PATH not in sys.path:
 # ---------------------------------------------------------------------
 from ml.feature_engineering.extractor import extract_features, to_vector  # noqa: E402
 from ml.feature_engineering.tokenizer import CharTokenizer                # noqa: E402
+
+# The deployed models were trained with headers={} for every row because the
+# dataset parser did not capture HTTP headers. Keep live ML input identical to
+# that training representation. Real headers are still available on the
+# original request and are forwarded to the protected application.
+def normalize_request_for_ml(request: dict) -> dict:
+    """Return the training-compatible request representation used by inference."""
+    return {
+        "url": request.get("url", ""),
+        "method": request.get("method", "GET"),
+        "headers": {},
+        "body": request.get("body", ""),
+    }
 from ml.feature_engineering.normalizer import Normalizer           # noqa: E402
 
 # ---------------------------------------------------------------------
@@ -70,10 +88,13 @@ def extract(request: dict) -> tuple[np.ndarray, np.ndarray]:
         Shape (1, 512), dtype int64
         EXACT same tokenizer output used in training
     """
-    # 1) Exact training-side feature extraction
-    feats = extract_features(request)
+    # 1) Normalize live input to the exact representation used during training.
+    ml_request = normalize_request_for_ml(request)
 
-    # 2) Exact training-side feature order
+    # 2) Exact training-side feature extraction
+    feats = extract_features(ml_request)
+
+    # 3) Exact training-side feature order
     fvec = to_vector(feats).astype(np.float32)
 
     if fvec.ndim == 1:
@@ -83,7 +104,7 @@ def extract(request: dict) -> tuple[np.ndarray, np.ndarray]:
     norm = _load_normalizer()
     fvec_scaled = norm.transform(fvec).astype(np.float32)
 
-    # 4) Exact training-side tokenizer
-    token_ids = _tokenizer.encode_request(request).reshape(1, -1).astype(np.int64)
+    # 5) Exact training-side tokenizer
+    token_ids = _tokenizer.encode_request(ml_request).reshape(1, -1).astype(np.int64)
 
     return fvec_scaled, token_ids
