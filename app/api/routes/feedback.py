@@ -2,6 +2,7 @@
 import json
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import Response
+from app.core.config import settings
 from app.db.queries import (
     get_pending_feedback,
     get_latest_retrain_batch,
@@ -9,6 +10,10 @@ from app.db.queries import (
 )
 from app.db.collections import feedback_queue
 from app.services.adaptive_retrain import run_retrain_cycle
+from app.services.local_retraining import (
+    get_local_retrain_status,
+    start_local_retrain,
+)
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
@@ -41,6 +46,38 @@ async def trigger_retrain():
     result = await run_retrain_cycle()
     return result
 
+@router.post("/local-retrain/start")
+async def start_local_retrain_endpoint():
+    """Start validated feedback training on the same machine as the WAF."""
+    if not settings.LOCAL_RETRAIN_ENABLED:
+        raise HTTPException(503, "Local retraining is disabled")
+
+    state = get_local_retrain_status()
+    if state.get("status") in {"starting", "running"}:
+        raise HTTPException(409, "A local retraining job is already running")
+
+    batch = await get_latest_retrain_batch()
+    if not batch or batch.get("status") in {"deployed", "running"}:
+        prepared = await run_retrain_cycle()
+        if prepared.get("status") != "queued":
+            return prepared
+        batch = await get_retrain_batch(prepared["batch_id"])
+
+    if not batch:
+        raise HTTPException(404, "No validated retraining batch is available")
+
+    try:
+        return await start_local_retrain(batch)
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.get("/local-retrain/status")
+async def local_retrain_status():
+    """Return the current local-machine training job state."""
+    return get_local_retrain_status()
+
+
 @router.get("/retrain-batches/latest")
 async def latest_retrain_batch():
     """Return the latest clean batch manifest for offline training."""
@@ -70,7 +107,7 @@ async def export_latest_retrain_batch():
 
 @router.get("/retrain-batches/{batch_id}/export")
 async def export_retrain_batch(batch_id: str):
-    """Download one clean retraining batch as JSON for Kaggle/Colab."""
+    """Download one clean retraining batch as JSON for local backup/export."""
     batch = await get_retrain_batch(batch_id)
     if not batch:
         raise HTTPException(404, "Retraining batch not found")
