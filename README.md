@@ -482,6 +482,8 @@ GET  /api/feedback/pending?limit=100
 POST /api/feedback/review/{request_id}
      Body: { "verified_label": "sqli", "is_poisoning": false }
 POST /api/feedback/trigger-retrain
+POST /api/feedback/local-retrain/start
+GET  /api/feedback/local-retrain/status
 ```
 Valid labels: `normal`, `sqli`, `xss`, `lfi`, `other_attack`, `false_positive`
 
@@ -515,7 +517,38 @@ Both scripts target `dummy_app.py`'s actual routes (`/api/products`, `/api/order
 
 ## Training the Models
 
-Training runs offline on Kaggle. Run notebooks in order — NB01 through NB08:
+Baseline model training remains reproducible through the NB01–NB08 notebooks.
+Adaptive retraining can now run directly on the same machine as the WAF — no
+Kaggle or Colab is required after the baseline artifacts are prepared.
+
+Place the frozen baseline retraining artifacts under:
+
+```
+ml/retraining_artifacts/base/
+├── layer2b_bigru_checkpoint.pt
+├── l2b_train_X_tokens.npy
+├── l2b_train_y.npy
+├── l2b_val_X_tokens.npy
+├── l2b_val_y.npy
+├── l2a_normal_val.npy
+└── l2a_attack_val.npy
+```
+
+Install local training dependencies in the same virtual environment as the
+FastAPI server:
+
+```bash
+pip install -r app/requirements.txt
+pip install -r requirements-training.txt
+```
+
+Run the WAF natively and use **Dashboard → Retraining Control → Start Local
+Retraining**. The worker fine-tunes Layer 2B, recalibrates L2A, validates the
+result, backs up the active artifacts, and hot-reloads the new model.
+
+The selective escalation threshold remains unchanged.
+
+Baseline notebooks:
 
 ```
 01-data-exploration.ipynb              → dataset distribution
