@@ -63,6 +63,21 @@ async def get_pending_feedback(limit: int = 200) -> list:
     ).sort("timestamp", -1).limit(limit)
     return await cursor.to_list(length=limit)
 
+
+async def get_recent_retrain_logs(limit: int = 20) -> list:
+    cursor = retrain_log().find({}, {"_id": 0}).sort("timestamp", -1).limit(limit)
+    return await cursor.to_list(length=limit)
+
+async def get_recent_health_audits(limit: int = 20) -> list:
+    cursor = health_audit_log().find({}, {"_id": 0}).sort("timestamp", -1).limit(limit)
+    return await cursor.to_list(length=limit)
+
+async def get_pending_feedback_count() -> int:
+    return await feedback_queue().count_documents({
+        "verified_label": None,
+        "poisoning_flag": False,
+    })
+
 async def get_dashboard_stats() -> dict:
     now  = datetime.utcnow()
     h24  = now - timedelta(hours=24)
