@@ -28,11 +28,28 @@ async def dashboard(request: Request):
 @router.get("/dashboard/logs", response_class=HTMLResponse)
 async def logs_page(request: Request):
     from app.db.queries import get_recent_logs
-    logs = await get_recent_logs(limit=200)
+
+    # The filter buttons in logs.html pass ?decision=block|log|allow.
+    # Apply that value to the Mongo query so the page actually filters.
+    decision_filter = request.query_params.get("decision") or None
+
+    allowed_filters = {"block", "log", "allow"}
+    if decision_filter not in allowed_filters:
+        decision_filter = None
+
+    logs = await get_recent_logs(
+        limit=200,
+        decision_filter=decision_filter,
+    )
+
     return templates.TemplateResponse(
         request=request,
         name="logs.html",
-        context={"request": request, "logs": logs}
+        context={
+            "request": request,
+            "logs": logs,
+            "active_decision": decision_filter,
+        },
     )
 
 @router.get("/dashboard/feedback", response_class=HTMLResponse)
