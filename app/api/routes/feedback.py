@@ -8,7 +8,7 @@ from app.db.queries import (
     get_latest_retrain_batch,
     get_retrain_batch,
 )
-from app.db.collections import feedback_queue
+from app.db.collections import feedback_queue, retrain_batches
 from app.services.adaptive_retrain import run_retrain_cycle
 from app.services.local_retraining import (
     get_local_retrain_status,
@@ -47,8 +47,13 @@ async def trigger_retrain():
     return result
 
 @router.post("/local-retrain/start")
-async def start_local_retrain_endpoint():
-    """Start validated feedback training on the same machine as the WAF."""
+async def start_local_retrain_endpoint(batch_id: str | None = None):
+    """Start validated feedback training on the same machine as the WAF.
+
+    A batch_id can be supplied to resume a specific prepared batch. This is
+    important after a worker crash/restart: MongoDB may still say "running"
+    even though the in-memory local worker is no longer active.
+    """
     if not settings.LOCAL_RETRAIN_ENABLED:
         raise HTTPException(503, "Local retraining is disabled")
 
@@ -56,8 +61,18 @@ async def start_local_retrain_endpoint():
     if state.get("status") in {"starting", "running"}:
         raise HTTPException(409, "A local retraining job is already running")
 
-    batch = await get_latest_retrain_batch()
-    if not batch or batch.get("status") in {"deployed", "running"}:
+    if batch_id:
+        batch = await get_retrain_batch(batch_id)
+        if not batch:
+            raise HTTPException(404, f"Retraining batch not found: {batch_id}")
+    else:
+        batch = await get_latest_retrain_batch()
+
+    # If the requested/latest batch is missing or already deployed, prepare a
+    # fresh batch. A stale Mongo "running" state is reusable when no local
+    # worker is actually active; this happens after an interrupted process or
+    # FastAPI restart.
+    if not batch or batch.get("status") == "deployed":
         prepared = await run_retrain_cycle()
         if prepared.get("status") != "queued":
             return prepared
@@ -65,6 +80,20 @@ async def start_local_retrain_endpoint():
 
     if not batch:
         raise HTTPException(404, "No validated retraining batch is available")
+
+    # A batch that is marked running in Mongo but has no active local worker is
+    # stale. Reset it to queued before resuming the exact same validated batch.
+    if batch.get("status") == "running":
+        await retrain_batches().update_one(
+            {"batch_id": batch["batch_id"]},
+            {
+                "$set": {
+                    "status": "queued",
+                    "resume_note": "Resumed after stale local worker state.",
+                }
+            },
+        )
+        batch["status"] = "queued"
 
     try:
         return await start_local_retrain(batch)
