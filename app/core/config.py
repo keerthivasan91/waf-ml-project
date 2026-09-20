@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     RETRAIN_L2A_FPR_CAP: float = 0.05
     RETRAIN_MAX_BATCH_RATIO: float = 0.10
     RETRAIN_SEED: int = 42
+    RETRAIN_BATCH_SIZE: int = 256
+    # 0 = use the full frozen baseline train set. A positive value is useful
+    # for a local CPU smoke test; validation always remains the full frozen set.
+    RETRAIN_BASE_TRAIN_MAX_SAMPLES: int = 0
+    # 0 = keep PyTorch's default; positive value explicitly sets torch threads.
+    RETRAIN_TORCH_THREADS: int = 0
 
     # ── Threat scoring — CRC Decision 2 locked config ──────────────────────
     ESCALATION_THRESHOLD:  float = 0.00077472
