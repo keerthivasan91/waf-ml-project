@@ -41,7 +41,8 @@ import onnxruntime as ort
 import torch
 import torch.nn as nn
 from sklearn.metrics import f1_score
-from sklearn.model_selection import GroupShuffleSplit
+from sklearn.model_selection import GroupShuffleSplit, train_test_split
+from app.core.config import settings
 
 from ml.feature_engineering.extractor import extract_features, to_vector, strip_to_path_query
 from ml.feature_engineering.normalizer import Normalizer
@@ -213,6 +214,32 @@ def fine_tune_l2b(
     X_val = np.load(val_x).astype(np.int64)
     y_val = np.load(val_y).astype(np.int64)
 
+    max_base_samples = settings.RETRAIN_BASE_TRAIN_MAX_SAMPLES
+    if max_base_samples and max_base_samples < len(X_base):
+        if max_base_samples < len(np.unique(y_base)):
+            raise ValueError(
+                "RETRAIN_BASE_TRAIN_MAX_SAMPLES must be at least the number "
+                "of baseline classes."
+            )
+        base_idx, _ = train_test_split(
+            np.arange(len(X_base)),
+            train_size=max_base_samples,
+            random_state=seed,
+            stratify=y_base,
+        )
+        X_base = X_base[base_idx]
+        y_base = y_base[base_idx]
+        print(
+            f"[retrain] CPU smoke-test cap enabled | baseline subset="
+            f"{len(X_base)} of original {len(y_base)}",
+            flush=True,
+        )
+
+    print(
+        f"[retrain] Tokenizing feedback ({len(fit_samples)}) and holdout "
+        f"({len(holdout_samples)})...",
+        flush=True,
+    )
     X_feedback = request_to_tokens(fit_samples)
     y_feedback = request_to_labels(fit_samples)
 
@@ -243,14 +270,19 @@ def fine_tune_l2b(
         f1_score(y_holdout, baseline_holdout_pred, average="macro", zero_division=0)
     )
 
+    batch_size = settings.RETRAIN_BATCH_SIZE
+
     loader = torch.utils.data.DataLoader(
         torch.utils.data.TensorDataset(
             torch.from_numpy(X_train).long(),
             torch.from_numpy(y_train).long(),
         ),
-        batch_size=128,
+        batch_size=batch_size,
         shuffle=True,
     )
+
+    if settings.RETRAIN_TORCH_THREADS > 0:
+        torch.set_num_threads(settings.RETRAIN_TORCH_THREADS)
 
     criterion = nn.CrossEntropyLoss(weight=class_weights(y_train, device))
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-5)
@@ -271,7 +303,7 @@ def fine_tune_l2b(
         total_loss = 0.0
         print(f"[retrain] Epoch {epoch}/{epochs} started", flush=True)
 
-        for xb, yb in loader:
+        for batch_idx, (xb, yb) in enumerate(loader, start=1):
             xb, yb = xb.to(device), yb.to(device)
             optimizer.zero_grad()
             loss = criterion(model(xb), yb)
@@ -280,6 +312,16 @@ def fine_tune_l2b(
             optimizer.step()
             total_loss += float(loss.item())
 
+            if batch_idx == 1 or batch_idx % 5 == 0 or batch_idx == len(loader):
+                elapsed = time.perf_counter() - epoch_started
+                print(
+                    f"[retrain] Epoch {epoch}/{epochs} | "
+                    f"batch {batch_idx}/{len(loader)} | "
+                    f"loss={float(loss.item()):.6f} | elapsed={elapsed:.1f}s",
+                    flush=True,
+                )
+
+        print(f"[retrain] Epoch {epoch}/{epochs} validation started", flush=True)
         val_f1 = evaluate_macro_f1(model, X_val, y_val, device)
         train_loss = total_loss / max(1, len(loader))
         epoch_seconds = time.perf_counter() - epoch_started
