@@ -20,7 +20,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from pathlib import Path
-import mlflow
+try:
+    import mlflow
+except ImportError:  # offline inference/fine-tuning does not require experiment tracking
+    mlflow = None
 
 from feature_engineering.tokenizer import VOCAB_SIZE, CharTokenizer
 

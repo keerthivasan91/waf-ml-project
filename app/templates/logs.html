@@ -9,7 +9,7 @@
     <a href="/dashboard/logs" class="filter-btn {% if not request.query_params.get('decision') %}active{% endif %}">All</a>
     <a href="/dashboard/logs?decision=block" class="filter-btn {% if request.query_params.get('decision')=='block' %}active{% endif %}">Blocked</a>
     <a href="/dashboard/logs?decision=log"   class="filter-btn {% if request.query_params.get('decision')=='log' %}active{% endif %}">Flagged</a>
-    <a href="/dashboard/logs?decision=allow" class="filter-btn {% if request.query_params.get('decision')=='allow' %}active{% endif %}">Allowed</div>
+    <a href="/dashboard/logs?decision=allow" class="filter-btn {% if request.query_params.get('decision')=='allow' %}active{% endif %}">Allowed</a>
   </div>
 </div>
 

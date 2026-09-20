@@ -13,9 +13,12 @@
   {% for item in items %}
   <div class="feedback-row" id="row-{{ item.request_id }}">
     <div class="feedback-meta">
-      <span class="attack-badge attack-badge--{{ item.label.split('_')[0] }}">{{ item.label }}</span>
-      <span class="score-pill score-pill--med">score {{ item.score }}</span>
-      <span class="mono dim">L2A={{ item.l2a_score | round(4) }}</span>
+      {% set item_label = item.label | default('unknown', true) %}
+      {% set item_score = item.score | default(0, true) %}
+      {% set item_l2a = item.l2a_score | default(0.0, true) %}
+      <span class="attack-badge attack-badge--{{ item_label.split('_')[0] }}">{{ item_label }}</span>
+      <span class="score-pill score-pill--med">score {{ item_score }}</span>
+      <span class="mono dim">L2A={{ item_l2a | round(4) }}</span>
       <span class="mono dim">{{ item.timestamp.strftime('%Y-%m-%d %H:%M') if item.timestamp else '' }}</span>
     </div>
     <div class="feedback-url mono">{{ item.url[:120] }}</div>

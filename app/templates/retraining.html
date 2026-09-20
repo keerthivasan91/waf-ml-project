@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}WAF-ML — Retraining Control{% endblock %}
+{% set active = "retraining" %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Retraining Control</h1>
+    <span class="page-sub">Admin workflow · review → audit → anti-poison validation → local training</span>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card stat-card--danger">
+    <div class="stat-label">Pending Reviews</div>
+    <div class="stat-value" id="pendingReviews">{{ pending_count }}</div>
+    <div class="stat-sub">Must be human-verified before retraining validation</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Minimum Samples</div>
+    <div class="stat-value">200</div>
+    <div class="stat-sub">Configured retrain gate</div>
+  </div>
+  <div class="stat-card stat-card--ok">
+    <div class="stat-label">Pipeline</div>
+    <div class="stat-value" style="font-size:1.6rem">READY</div>
+    <div class="stat-sub">Anti-poisoning validation enabled</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Local Training</div>
+    <div class="stat-value" style="font-size:1.6rem">NATIVE</div>
+    <div class="stat-sub">PyTorch retraining runs on this machine</div>
+  </div>
+</div>
+
+<section class="card admin-control-card">
+  <div class="card-header">
+    <div>
+      <h2>Admin Actions</h2>
+      <div class="dim" style="margin-top:.25rem">Operational controls for the feedback and model lifecycle.</div>
+    </div>
+  </div>
+
+  <div class="admin-action-grid admin-action-grid--six">
+    <a class="admin-action" href="/dashboard/feedback">
+      <strong>Review Queue</strong>
+      <span>Complete pending human labels and mark poisoning samples.</span>
+      <em>Open reviews →</em>
+    </a>
+
+    <button class="admin-action" onclick="triggerAudit()">
+      <strong>Trigger Health Audit</strong>
+      <span>Capture recent allow/log traffic, re-score it and create disagreement reviews.</span>
+      <em>Run audit →</em>
+    </button>
+
+    <a class="admin-action" href="/api/feedback/retrain-batches/latest/export" target="_blank">
+      <strong>Latest Batch</strong>
+      <span>Inspect the clean verified batch prepared for local training.</span>
+      <em>Open JSON →</em>
+    </a>
+
+    <button class="admin-action admin-action--warn" onclick="triggerRetrain()">
+      <strong>Prepare Retraining Batch</strong>
+      <span>Run the anti-poisoning checks on verified feedback. Local PyTorch training is ready to start.</span>
+      <em>Run validation →</em>
+    </button>
+
+    <button class="admin-action admin-action--warn" onclick="startLocalRetrain()">
+      <strong>Start Local Retraining</strong>
+      <span>Fine-tune the validated batch on this machine, back up the active model, and hot-reload it.</span>
+      <em>Start training →</em>
+    </button>
+
+    <button class="admin-action" onclick="reloadModels()">
+      <strong>Reload Models</strong>
+      <span>Reload the currently deployed ONNX models without restarting the server.</span>
+      <em>Reload →</em>
+    </button>
+  </div>
+
+  <div id="admin-action-result" class="admin-action-result" hidden></div>
+</section>
+
+<div class="two-col">
+  <section class="card">
+    <div class="card-header">
+      <h2>Recent Retrain Runs</h2>
+      <span class="page-sub">{{ retrain_logs|length }} records</span>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Time</th><th>Status</th><th>Raw</th><th>Clean</th><th>Rejected</th></tr></thead>
+      <tbody>
+      {% for row in retrain_logs %}
+        <tr>
+          <td class="mono nowrap">{{ row.timestamp.strftime('%Y-%m-%d %H:%M') if row.timestamp else '—' }}</td>
+          <td><span class="attack-badge attack-badge--normal">{{ row.status }}</span></td>
+          <td class="mono">{{ row.n_raw | default(0) }}</td>
+          <td class="mono">{{ row.n_clean | default(0) }}</td>
+          <td class="mono">{{ row.n_rejected | default(0) }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="empty-state">No retraining runs yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>Health Audit History</h2>
+      <span class="page-sub">{{ audit_logs|length }} records</span>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Time</th><th>Error Rate</th><th>Captured</th><th>Reviews</th></tr></thead>
+      <tbody>
+      {% for row in audit_logs %}
+        <tr>
+          <td class="mono nowrap">{{ row.timestamp.strftime('%Y-%m-%d %H:%M') if row.timestamp else '—' }}</td>
+          <td class="mono">{{ ((row.error_rate | default(0)) * 100) | round(1) }}%</td>
+          <td class="mono">{{ row.traffic_window_captured | default(0) }}</td>
+          <td class="mono">{{ row.feedback_candidates | default(0) }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="empty-state">No health audits recorded yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+.admin-action-card{}
+.admin-action-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem}
+.admin-action-grid--six{grid-template-columns:repeat(6,minmax(0,1fr))}
+.admin-action{
+  appearance:none;text-decoration:none;text-align:left;
+  border:1px solid var(--line2);border-radius:10px;background:#0b1425;
+  color:var(--text);padding:1rem;display:flex;flex-direction:column;gap:.45rem;
+  cursor:pointer;transition:.18s ease;font:inherit;
+}
+.admin-action:hover{transform:translateY(-1px);border-color:var(--cyan);background:#0e1a30;box-shadow:0 10px 24px rgba(0,0,0,.16)}
+.admin-action strong{font:600 .9rem var(--head)}
+.admin-action span{font-size:.68rem;color:var(--muted);line-height:1.5}
+.admin-action em{font:700 .63rem var(--mono);color:var(--cyan);font-style:normal;margin-top:auto}
+.admin-action--warn{border-color:rgba(245,158,11,.28)}
+.admin-action--warn:hover{border-color:var(--amber)}
+.admin-action-result{margin-top:.8rem;padding:.7rem .8rem;border:1px solid var(--line2);border-radius:8px;font:.7rem var(--mono);color:var(--muted);word-break:break-word}
+.admin-action-result.ok{border-color:rgba(34,197,94,.35);color:#8cf0ac;background:rgba(34,197,94,.06)}
+.admin-action-result.err{border-color:rgba(255,59,92,.35);color:#ff9bad;background:rgba(255,59,92,.06)}
+html[data-theme="light"] .admin-action{background:#fff;color:var(--text);border-color:#d9e3ee}
+html[data-theme="light"] .admin-action:hover{background:#eef8fb;border-color:#0891b2}
+@media(max-width:1500px){.admin-action-grid--six{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1100px){.admin-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.admin-action-grid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const resultBox = document.getElementById('admin-action-result');
+
+function showResult(ok, text) {
+  resultBox.hidden = false;
+  resultBox.className = 'admin-action-result ' + (ok ? 'ok' : 'err');
+  resultBox.textContent = text;
+}
+
+async function triggerAudit() {
+  showResult(true, 'Running health audit…');
+  try {
+    const r = await fetch('/api/health/trigger-audit?error_rate=1.0', {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+    showResult(true, 'Audit complete: captured=' + (d.traffic_window_captured ?? 0) +
+      ', new review candidates=' + (d.feedback_candidates ?? 0));
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    showResult(false, 'Audit failed: ' + e);
+  }
+}
+
+async function triggerRetrain() {
+  showResult(true, 'Running anti-poisoning validation…');
+  try {
+    const r = await fetch('/api/feedback/trigger-retrain', {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+
+    if (d.status === 'skipped') {
+      const available = d.n_clean ?? d.n_samples ?? 0;
+      showResult(true, 'Retraining not queued: ' + available +
+        ' clean samples available; minimum is 200. Reason=' + (d.reason ?? 'gate'));
+    } else {
+      showResult(true, 'Retraining batch queued: raw=' + (d.n_raw ?? 0) +
+        ', clean=' + (d.n_clean ?? 0) + ', rejected=' + (d.n_rejected ?? 0) +
+        '. Start Local Retraining to run PyTorch on this machine.');
+      setTimeout(() => location.reload(), 1500);
+    }
+  } catch (e) {
+    showResult(false, 'Retraining validation failed: ' + e);
+  }
+}
+
+async function startLocalRetrain() {
+  showResult(true, 'Starting local PyTorch retraining…');
+  try {
+    const r = await fetch('/api/feedback/local-retrain/start', {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+
+    if (d.status === 'skipped') {
+      showResult(true, 'Local retraining not started: ' + (d.reason ?? 'batch gate'));
+      return;
+    }
+
+    showResult(true, 'Local retraining started for batch ' + (d.batch_id ?? 'unknown') + '…');
+    pollLocalRetrain();
+  } catch (e) {
+    showResult(false, 'Local retraining failed to start: ' + e);
+  }
+}
+
+async function pollLocalRetrain() {
+  try {
+    const r = await fetch('/api/feedback/local-retrain/status');
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+
+    if (d.status === 'starting' || d.status === 'running') {
+      showResult(true, 'Local training is running… log=' + (d.log_path ?? 'training.log'));
+      setTimeout(pollLocalRetrain, 2000);
+      return;
+    }
+
+    if (d.status === 'deployed') {
+      showResult(true, 'Local retraining completed and the new model was promoted. Run=' + (d.run_dir ?? '—'));
+      setTimeout(() => location.reload(), 1500);
+      return;
+    }
+
+    if (d.status === 'trained') {
+      showResult(true, 'Training completed without auto-promotion. Run=' + (d.run_dir ?? '—'));
+      return;
+    }
+
+    if (d.status === 'failed') {
+      showResult(false, 'Local retraining failed: ' + (d.error ?? 'unknown error'));
+      return;
+    }
+  } catch (e) {
+    showResult(false, 'Could not read local retraining status: ' + e);
+  }
+}
+
+async function reloadModels() {
+  showResult(true, 'Reloading ONNX models…');
+  try {
+    const r = await fetch('/api/models/reload', {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(d));
+    showResult(true, 'Models reloaded successfully. L2A threshold=' + d.l2a_threshold);
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    showResult(false, 'Model reload failed: ' + e);
+  }
+}
+
+pollLocalRetrain();
+</script>
+{% endblock %}

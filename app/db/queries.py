@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 from app.db.collections import (request_logs, threat_events,
                              feedback_queue, health_snapshots,
-                             health_audit_log)
+                             health_audit_log, retrain_log, retrain_batches)
 
 # NOTE: Motor's insert_one() mutates the dict you pass it in place,
 # injecting a raw (non-JSON-serializable) ObjectId into doc["_id"].
@@ -62,6 +62,33 @@ async def get_pending_feedback(limit: int = 200) -> list:
         {"_id": 0}
     ).sort("timestamp", -1).limit(limit)
     return await cursor.to_list(length=limit)
+
+
+async def get_recent_retrain_logs(limit: int = 20) -> list:
+    cursor = retrain_log().find({}, {"_id": 0}).sort("timestamp", -1).limit(limit)
+    return await cursor.to_list(length=limit)
+
+async def get_latest_retrain_batch() -> dict | None:
+    cursor = retrain_batches().find({}, {"_id": 0}).sort("created_at", -1).limit(1)
+    rows = await cursor.to_list(length=1)
+    return rows[0] if rows else None
+
+
+async def get_retrain_batch(batch_id: str) -> dict | None:
+    return await retrain_batches().find_one(
+        {"batch_id": batch_id},
+        {"_id": 0},
+    )
+
+async def get_recent_health_audits(limit: int = 20) -> list:
+    cursor = health_audit_log().find({}, {"_id": 0}).sort("timestamp", -1).limit(limit)
+    return await cursor.to_list(length=limit)
+
+async def get_pending_feedback_count() -> int:
+    return await feedback_queue().count_documents({
+        "verified_label": None,
+        "poisoning_flag": False,
+    })
 
 async def get_dashboard_stats() -> dict:
     now  = datetime.utcnow()

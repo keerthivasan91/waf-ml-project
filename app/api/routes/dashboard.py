@@ -2,7 +2,9 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from app.db.queries import get_dashboard_stats, get_recent_threats, get_pending_feedback
+from app.db.queries import (get_dashboard_stats, get_recent_threats, get_pending_feedback,
+                             get_pending_feedback_count, get_recent_retrain_logs,
+                             get_recent_health_audits)
 
 router    = APIRouter(tags=["dashboard"])
 templates = Jinja2Templates(directory="app/templates")
@@ -11,6 +13,7 @@ templates = Jinja2Templates(directory="app/templates")
 async def dashboard(request: Request):
     stats   = await get_dashboard_stats()
     threats = await get_recent_threats(limit=20)
+    pending_reviews = await get_pending_feedback_count()
     return templates.TemplateResponse(
     request=request,
     name="dashboard.html",
@@ -18,17 +21,35 @@ async def dashboard(request: Request):
         "request": request,
         "stats": stats,
         "threats": threats,
+        "pending_reviews": pending_reviews,
     },
 )
 
 @router.get("/dashboard/logs", response_class=HTMLResponse)
 async def logs_page(request: Request):
     from app.db.queries import get_recent_logs
-    logs = await get_recent_logs(limit=200)
+
+    # The filter buttons in logs.html pass ?decision=block|log|allow.
+    # Apply that value to the Mongo query so the page actually filters.
+    decision_filter = request.query_params.get("decision") or None
+
+    allowed_filters = {"block", "log", "allow"}
+    if decision_filter not in allowed_filters:
+        decision_filter = None
+
+    logs = await get_recent_logs(
+        limit=200,
+        decision_filter=decision_filter,
+    )
+
     return templates.TemplateResponse(
         request=request,
         name="logs.html",
-        context={"request": request, "logs": logs}
+        context={
+            "request": request,
+            "logs": logs,
+            "active_decision": decision_filter,
+        },
     )
 
 @router.get("/dashboard/feedback", response_class=HTMLResponse)
@@ -40,6 +61,22 @@ async def feedback_page(request: Request):
         context={"request": request, "items": items}
     )
 
+@router.get("/dashboard/retraining", response_class=HTMLResponse)
+async def retraining_page(request: Request):
+    pending_count = await get_pending_feedback_count()
+    retrain_logs = await get_recent_retrain_logs(limit=20)
+    audit_logs = await get_recent_health_audits(limit=20)
+    return templates.TemplateResponse(
+        request=request,
+        name="retraining.html",
+        context={
+            "request": request,
+            "pending_count": pending_count,
+            "retrain_logs": retrain_logs,
+            "audit_logs": audit_logs,
+        }
+    )
+
 @router.get("/dashboard/threats", response_class=HTMLResponse)
 async def threats_page(request: Request):
     from app.db.queries import get_recent_threats
@@ -49,6 +86,18 @@ async def threats_page(request: Request):
         name="threats.html",
         context={"request": request, "threats": threats}
     )
+
+@router.get("/simulator", response_class=HTMLResponse)
+async def simulator_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="simulator.html",
+        context={
+            "request": request,
+            "version": "1.0.0",
+        },
+    )
+
 
 @router.get("/dashboard/models", response_class=HTMLResponse)
 async def models_page(request: Request):

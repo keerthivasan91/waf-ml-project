@@ -1,0 +1,36 @@
+name: UI Tests
+
+on:
+  push:
+    branches:
+      - feat/live-waf-simulator
+
+jobs:
+  ui-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python test dependencies
+        run: python -m pip install -r app/requirements.txt
+
+      - name: Run runtime ML contract tests
+        run: python -m unittest discover -s tests/unit -p "test_runtime_ml_request_contract.py" -v
+
+      - name: Run retraining contract tests
+        run: python -m unittest discover -s tests/unit -p "test_*retrain*.py" -v
+
+      - name: Compile offline retraining script
+        run: python -m py_compile ml/retraining/offline_retrain.py
+
+      - name: Run UI unit tests
+        run: python -m unittest discover -s tests/ui -p "test_*.py" -v
+
+      - name: Syntax-check frontend JavaScript
+        run: node --check app/static/js/main.js

@@ -37,11 +37,12 @@ trigger event + clean sample count, matching NB07's Priority D pipeline
 import asyncio
 import hashlib
 import re
+from uuid import uuid4
 from collections import defaultdict
 from datetime import datetime
 from app.core.config import settings
 from app.core.logging import logger
-from app.db.collections import feedback_queue, retrain_log
+from app.db.collections import feedback_queue, retrain_log, retrain_batches
 import app.services.layer1_filter as l1
 import app.services.layer2a_anomaly as l2a
 import app.services.layer2b_deep as l2b
@@ -67,7 +68,9 @@ def _cross_agreement_pass(sample: dict) -> tuple[bool, str]:
     except Exception as e:
         return False, f"reaudit_failed:{e}"
 
-    if verified_label == "normal":
+    # "false_positive" is a human-confirmed normal request and must follow
+    # the normal cross-agreement path, not the attack path.
+    if verified_label in {"normal", "false_positive"}:
         if result["label"] == "normal":
             return True, ""
         return False, "cross_agreement_failed_normal_flagged_as_attack"
@@ -84,7 +87,14 @@ async def run_retrain_cycle() -> dict:
     """
     # Fetch verified non-poisoned feedback
     cursor = feedback_queue().find(
-        {"verified_label": {"$ne": None}, "poisoning_flag": False},
+        {
+            "verified_label": {"$ne": None},
+            "poisoning_flag": False,
+            "$or": [
+                {"retrain_batch_id": {"$exists": False}},
+                {"retrain_batch_id": None},
+            ],
+        },
         {"_id": 0}
     )
     samples = await cursor.to_list(length=10000)
@@ -143,6 +153,24 @@ async def run_retrain_cycle() -> dict:
     logger.info("Retrain anti-poison: %d/%d samples passed (%d rejected)",
                 len(clean), len(samples), len(rejected))
 
+    # The online gate must be based on the clean, anti-poison-verified count.
+    # Otherwise a batch such as 185 clean / 233 raw would be marked queued even
+    # though the offline trainer correctly refuses batches below 200 samples.
+    if len(clean) < settings.RETRAIN_MIN_SAMPLES:
+        logger.info(
+            "Retrain skipped after anti-poisoning: only %d clean samples (min=%d)",
+            len(clean),
+            settings.RETRAIN_MIN_SAMPLES,
+        )
+        return {
+            "status": "skipped",
+            "reason": "insufficient_clean_samples",
+            "n_samples": len(samples),
+            "n_clean": len(clean),
+            "n_rejected": len(rejected),
+            "reject_reason_breakdown": dict(reject_reason_counts),
+        }
+
     # NB07's human-review batch-size gate (batch must not exceed
     # MAX_BATCH_RATIO of the target class's actual training-set size) needs
     # per-class training counts this service doesn't have at runtime. That
@@ -150,16 +178,53 @@ async def run_retrain_cycle() -> dict:
     # service's job ends at producing a clean, anti-poison-verified batch
     # for NB07 to consume and gate.
 
+    batch_id = str(uuid4())
     run_doc = {
-        "timestamp":    datetime.utcnow(),
-        "status":       "queued",
-        "n_raw":        len(samples),
-        "n_clean":      len(clean),
-        "n_rejected":   len(rejected),
+        "batch_id":      batch_id,
+        "timestamp":     datetime.utcnow(),
+        "status":        "queued",
+        "n_raw":         len(samples),
+        "n_clean":       len(clean),
+        "n_rejected":    len(rejected),
         "reject_reason_breakdown": dict(reject_reason_counts),
-        "note":         "Full retraining runs offline in Kaggle/Colab (NB07 pipeline). "
-                        "This logs the trigger event, clean sample count, and anti-poison "
-                        "rejection breakdown for that pipeline to consume.",
+        "note":          "Clean verified samples prepared for local-machine retraining.",
     }
+
+    # Persist the actual clean batch. This closes the production -> offline
+    # training gap: the offline trainer can consume exactly the batch that
+    # passed the online anti-poisoning gate.
+    batch_doc = {
+        "batch_id": batch_id,
+        "created_at": run_doc["timestamp"],
+        "status": "queued",
+        "n_raw": len(samples),
+        "n_clean": len(clean),
+        "n_rejected": len(rejected),
+        "reject_reason_breakdown": dict(reject_reason_counts),
+        "samples": clean,
+    }
+    await retrain_batches().insert_one(batch_doc)
+
+    # Mark only clean samples as consumed. Rejected samples remain eligible for
+    # a future review/model cycle because a later model may legitimately
+    # disagree with the current anti-poisoning re-audit.
+    clean_ids = [s.get("request_id") for s in clean if s.get("request_id")]
+    if clean_ids:
+        await feedback_queue().update_many(
+            {"request_id": {"$in": clean_ids}},
+            {"$set": {
+                "retrain_batch_id": batch_id,
+                "retrain_exported_at": run_doc["timestamp"],
+            }},
+        )
+
     await retrain_log().insert_one(run_doc)
-    return {**run_doc, "_id": str(run_doc.get("_id", ""))}
+
+    return {
+        "status": "queued",
+        "batch_id": batch_id,
+        "n_raw": len(samples),
+        "n_clean": len(clean),
+        "n_rejected": len(rejected),
+        "reject_reason_breakdown": dict(reject_reason_counts),
+    }

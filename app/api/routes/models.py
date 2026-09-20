@@ -69,6 +69,12 @@ async def reload_models():
     except Exception as e:
         errors.append(f"L2B: {e}")
 
+    try:
+        from app.services import feature_extractor
+        feature_extractor.reload_normalizer()
+    except Exception as e:
+        errors.append(f"Scaler: {e}")
+
     if errors:
         raise HTTPException(status_code=500,
                             detail={"reload_errors": errors})

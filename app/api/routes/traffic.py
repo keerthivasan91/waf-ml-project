@@ -37,7 +37,9 @@ async def analyze(req: IncomingRequest):
                             score=100, label=reason, layer="L1", latency_ms=ms)
 
     # Features (scaled — see app/services/feature_extractor.py)
-    req_dict = {"url": url, "method": req.method, "headers": req.headers, "body": body}
+    # Fix A: match the deployed model's training representation.
+    # Headers remain accepted by the API schema but are excluded from ML.
+    req_dict = {"url": url, "method": req.method, "headers": {}, "body": body}
     fvec, token_ids = extract(req_dict)
 
     # L2A — raw score only; routing decision uses settings.ESCALATION_THRESHOLD,

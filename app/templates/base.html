@@ -3,17 +3,74 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}WAF-ML{% endblock %}</title>
+  <meta name="theme-color" content="#050814">
+  <title>{% block title %}WAF-ML Security Operations{% endblock %}</title>
+  <script>
+    (function () {
+      try {
+        const saved = localStorage.getItem("waf-theme");
+        const sidebar = localStorage.getItem("waf-sidebar");
+        if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+        if (sidebar === "collapsed" || sidebar === "expanded") document.documentElement.dataset.sidebar = sidebar;
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/main.css">
   {% block head %}{% endblock %}
 </head>
 <body>
-  {% include "partials/nav.html" %}
-  <main class="main">
-    {% block content %}{% endblock %}
-  </main>
+  <header class="global-header">
+    <a href="/dashboard" class="header-brand">
+      <span class="header-brand-mark"><span></span><span></span><span></span></span>
+      <span class="header-brand-copy"><strong>WAF<span>-ML</span></strong><small>HYBRID INTELLIGENT FIREWALL</small></span>
+    </a>
+
+    <div class="header-center">
+      <span class="header-context">SECURITY OPERATIONS</span>
+      <span class="header-slash">/</span>
+      <span class="header-page">
+        {% if active == 'dashboard' %}THREAT OVERVIEW
+        {% elif active == 'logs' %}LIVE TRAFFIC
+        {% elif active == 'threats' %}THREAT INTELLIGENCE
+        {% elif active == 'feedback' %}ANALYST REVIEW
+        {% elif active == 'models' %}MODEL REGISTRY
+        {% elif active == 'simulator' %}ATTACK SIMULATOR
+        {% else %}CONTROL PLANE{% endif %}
+      </span>
+    </div>
+
+    <div class="header-actions">
+      <div class="header-health">
+        <span class="status-dot"></span>
+        <span>WAF ONLINE</span>
+      </div>
+      <span class="header-time" id="topbarTime">--:--:--</span>
+      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to light mode" aria-pressed="false" title="Switch to light mode">
+        <span class="theme-toggle-icon theme-toggle-icon--sun" aria-hidden="true">☀</span>
+        <span class="theme-toggle-icon theme-toggle-icon--moon" aria-hidden="true">◐</span>
+      </button>
+      <a href="/api/docs" target="_blank" class="header-docs">API ↗</a>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    {% include "partials/nav.html" %}
+    <div class="app-content">
+      <main class="main">
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="app-footer">
+        <span>WAF-ML • Hybrid Intelligent Web Application Firewall</span>
+        <span class="footer-dot"></span>
+        <span>Local security control plane</span>
+      </footer>
+    </div>
+  </div>
+
   <script src="/static/js/main.js"></script>
   {% block scripts %}{% endblock %}
 </body>

@@ -61,6 +61,7 @@ class WAFMiddleware(BaseHTTPMiddleware):
             "/api/docs",
             "/api/redoc",
             "/dashboard",
+            "/simulator",
             "/static",
             "/openapi.json",
             "/favicon.ico",
@@ -109,7 +110,9 @@ class WAFMiddleware(BaseHTTPMiddleware):
         req_dict = {
             "url": clean_url,
             "method": request.method,
-            "headers": dict(request.headers),
+            # Fix A: current models were trained with headers={}. Keep browser
+            # headers out of the ML feature distribution.
+            "headers": {},
             "body": body_text,
             "ip": request.client.host if request.client else None,
         }
@@ -150,6 +153,16 @@ class WAFMiddleware(BaseHTTPMiddleware):
 
             return JSONResponse(
                 status_code=403,
+                headers=_waf_headers(
+                    request_id=request_id,
+                    decision="block",
+                    score=100,
+                    label=l1_reason,
+                    layer="L1",
+                    latency_ms=ms,
+                    l2a_score=0.0,
+                    confidence=1.0,
+                ),
                 content={
                     "blocked": True,
                     "reason": l1_reason,
@@ -192,7 +205,18 @@ class WAFMiddleware(BaseHTTPMiddleware):
 
             # If feature extraction fails, forward the request rather
             # than crashing the protected application.
-            return await _forward(request, raw_body)
+            return await _forward(
+                request,
+                raw_body,
+                waf_headers=_waf_headers(
+                    request_id=request_id,
+                    decision="allow",
+                    score=0,
+                    label="feature_extraction_error",
+                    layer="FAIL_OPEN",
+                    latency_ms=round((time.perf_counter() - t0) * 1000, 2),
+                ),
+            )
 
         # ============================================================
         # LAYER 2A — ANOMALY DETECTION
@@ -255,7 +279,20 @@ class WAFMiddleware(BaseHTTPMiddleware):
                 body_text=body_text,
             )
 
-            return await _forward(request, raw_body)
+            return await _forward(
+                request,
+                raw_body,
+                waf_headers=_waf_headers(
+                    request_id=request_id,
+                    decision="allow",
+                    score=0,
+                    label="normal",
+                    layer="L2A",
+                    latency_ms=ms,
+                    l2a_score=l2a_score,
+                    confidence=1.0,
+                ),
+            )
 
         # ============================================================
         # LAYER 2B — DEEP CLASSIFIER
@@ -334,6 +371,16 @@ class WAFMiddleware(BaseHTTPMiddleware):
 
             return JSONResponse(
                 status_code=403,
+                headers=_waf_headers(
+                    request_id=request_id,
+                    decision=decision,
+                    score=score,
+                    label=label,
+                    layer="L2B",
+                    latency_ms=ms,
+                    l2a_score=l2a_score,
+                    confidence=confidence,
+                ),
                 content={
                     "blocked": True,
                     "label": label,
@@ -350,7 +397,45 @@ class WAFMiddleware(BaseHTTPMiddleware):
         return await _forward(
             request,
             raw_body,
+            waf_headers=_waf_headers(
+                request_id=request_id,
+                decision=decision,
+                score=score,
+                label=label,
+                layer="L2B",
+                latency_ms=ms,
+                l2a_score=l2a_score,
+                confidence=confidence,
+            ),
         )
+
+
+def _waf_headers(
+    *,
+    request_id: str,
+    decision: str,
+    score: int,
+    label: str,
+    layer: str,
+    latency_ms: float | None = None,
+    l2a_score: float | None = None,
+    confidence: float | None = None,
+) -> dict[str, str]:
+    """Expose the live WAF decision to the simulator and diagnostic clients."""
+    headers = {
+        "X-WAF-Request-ID": request_id,
+        "X-WAF-Decision": decision,
+        "X-WAF-Score": str(score),
+        "X-WAF-Label": label,
+        "X-WAF-Layer": layer,
+    }
+    if latency_ms is not None:
+        headers["X-WAF-Latency-Ms"] = str(latency_ms)
+    if l2a_score is not None:
+        headers["X-WAF-L2A-Score"] = f"{l2a_score:.8f}"
+    if confidence is not None:
+        headers["X-WAF-Confidence"] = f"{confidence:.4f}"
+    return headers
 
 
 # ================================================================
@@ -360,6 +445,7 @@ class WAFMiddleware(BaseHTTPMiddleware):
 async def _forward(
     request: Request,
     raw_body: bytes,
+    waf_headers: dict[str, str] | None = None,
 ) -> Response:
 
     """
@@ -407,22 +493,24 @@ async def _forward(
                 content=raw_body,
             )
 
+        response_headers = {
+            k: v
+            for k, v in r.headers.items()
+            if k.lower()
+            not in (
+                "content-length",
+                "transfer-encoding",
+                "connection",
+            )
+        }
+        if waf_headers:
+            response_headers.update(waf_headers)
+
         return Response(
             content=r.content,
             status_code=r.status_code,
-            headers={
-                k: v
-                for k, v in r.headers.items()
-                if k.lower()
-                not in (
-                    "content-length",
-                    "transfer-encoding",
-                    "connection",
-                )
-            },
-            media_type=r.headers.get(
-                "content-type"
-            ),
+            headers=response_headers,
+            media_type=r.headers.get("content-type"),
         )
 
     except Exception as e:
