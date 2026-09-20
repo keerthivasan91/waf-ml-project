@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import random
 import re
 import shutil
@@ -28,6 +29,13 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+if sys.stdout is not None:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if sys.stderr is not None:
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+env = os.environ.copy()
+env["PYTHONIOENCODING"] = "utf-8"
 
 # The GRU candidate imports `feature_engineering` as a top-level package.
 # When launched with `python -m ml.retraining.offline_retrain`, the repository
