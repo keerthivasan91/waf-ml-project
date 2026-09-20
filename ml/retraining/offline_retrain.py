@@ -220,6 +220,7 @@ def fine_tune_l2b(
 
     X_base = np.load(base_train_x).astype(np.int64)
     y_base = np.load(base_train_y).astype(np.int64)
+    original_base_count = len(X_base)
     X_val = np.load(val_x).astype(np.int64)
     y_val = np.load(val_y).astype(np.int64)
 
@@ -240,7 +241,7 @@ def fine_tune_l2b(
         y_base = y_base[base_idx]
         print(
             f"[retrain] CPU smoke-test cap enabled | baseline subset="
-            f"{len(X_base)} of original {len(y_base)}",
+            f"{len(X_base)} of original {original_base_count}",
             flush=True,
         )
 
