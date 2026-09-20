@@ -91,6 +91,7 @@ def _training_command(batch_path: Path, output_dir: Path) -> list[str]:
     base = _required_inputs()
     return [
         sys.executable,
+        "-u",
         "-m",
         "ml.retraining.offline_retrain",
         "--batch",
