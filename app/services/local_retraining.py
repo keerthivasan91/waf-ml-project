@@ -157,7 +157,9 @@ def _promote(run_dir: Path) -> dict[str, Any]:
     active = {
         "l2a_model": _resolve(settings.L2A_ONNX_PATH),
         "l2b_model": _resolve(settings.L2B_ONNX_PATH),
-        "l2b_checkpoint": _resolve(settings.RETRAIN_BASE_CHECKPOINT),
+        # Never overwrite the frozen training baseline. Keep the deployed
+        # checkpoint in a separate path for rollback/audit purposes.
+        "l2b_checkpoint": _resolve(settings.RETRAIN_DEPLOYED_CHECKPOINT),
         "threshold": _resolve(settings.L2A_THRESHOLD_PATH),
         "scaler": _resolve(settings.SCALER_PATH),
     }
