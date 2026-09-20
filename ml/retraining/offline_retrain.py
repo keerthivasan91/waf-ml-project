@@ -226,9 +226,17 @@ def fine_tune_l2b(
     y_holdout = request_to_labels(holdout_samples)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(
+        f"[retrain] Data loaded | base_train={len(X_base)} | "
+        f"val={len(X_val)} | feedback_fit={len(fit_samples)} | "
+        f"holdout={len(holdout_samples)} | device={device} | "
+        f"torch_threads={torch.get_num_threads()}",
+        flush=True,
+    )
     model = build_model_from_checkpoint(base_checkpoint).to(device)
 
     baseline_f1 = evaluate_macro_f1(model, X_val, y_val, device)
+    print(f"[retrain] Baseline validation Macro-F1={baseline_f1:.6f}", flush=True)
     baseline_holdout_pred = predict_tokens(model, X_holdout, device)
     baseline_holdout_accuracy = float(np.mean(baseline_holdout_pred == y_holdout))
     baseline_holdout_f1 = float(
@@ -251,9 +259,17 @@ def fine_tune_l2b(
     best_val_f1 = -1.0
     epoch_history = []
 
+    print(
+        f"[retrain] Starting fine-tuning | effective_train={len(X_train)} | "
+        f"batches={len(loader)} | epochs={epochs} | oversample={oversample_factor}",
+        flush=True,
+    )
+
     for epoch in range(1, epochs + 1):
+        epoch_started = time.perf_counter()
         model.train()
         total_loss = 0.0
+        print(f"[retrain] Epoch {epoch}/{epochs} started", flush=True)
 
         for xb, yb in loader:
             xb, yb = xb.to(device), yb.to(device)
@@ -265,19 +281,36 @@ def fine_tune_l2b(
             total_loss += float(loss.item())
 
         val_f1 = evaluate_macro_f1(model, X_val, y_val, device)
+        train_loss = total_loss / max(1, len(loader))
+        epoch_seconds = time.perf_counter() - epoch_started
+
         epoch_history.append(
             {
                 "epoch": epoch,
-                "train_loss": total_loss / max(1, len(loader)),
+                "train_loss": train_loss,
                 "val_macro_f1": val_f1,
+                "duration_seconds": epoch_seconds,
             }
         )
 
-        if val_f1 >= baseline_f1 - tolerance and val_f1 > best_val_f1:
+        eligible = val_f1 >= baseline_f1 - tolerance
+        print(
+            f"[retrain] Epoch {epoch}/{epochs} complete | "
+            f"loss={train_loss:.6f} | val_macro_f1={val_f1:.6f} | "
+            f"eligible={eligible} | duration={epoch_seconds:.1f}s",
+            flush=True,
+        )
+
+        if eligible and val_f1 > best_val_f1:
             best_val_f1 = val_f1
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
     if best_state is None:
+        print(
+            "[retrain] No epoch satisfied the validation-F1 tolerance; "
+            "aborting before export.",
+            flush=True,
+        )
         raise RuntimeError(
             "No fine-tuned epoch stayed within the validation F1 tolerance. "
             "Do not deploy this batch; inspect the retraining data/model."
@@ -286,10 +319,22 @@ def fine_tune_l2b(
     model.load_state_dict(best_state)
     model.eval()
 
+    print(
+        f"[retrain] Selected epoch | val_macro_f1={best_val_f1:.6f} "
+        f"| baseline={baseline_f1:.6f}",
+        flush=True,
+    )
+
     holdout_pred = predict_tokens(model, X_holdout, device)
     holdout_accuracy = float(np.mean(holdout_pred == y_holdout))
     holdout_f1 = float(
         f1_score(y_holdout, holdout_pred, average="macro", zero_division=0)
+    )
+
+    print(
+        f"[retrain] Holdout | accuracy={holdout_accuracy:.6f} "
+        f"| macro_f1={holdout_f1:.6f}",
+        flush=True,
     )
 
     checkpoint_path = output_dir / "layer2b_bigru_checkpoint.pt"
@@ -313,6 +358,8 @@ def fine_tune_l2b(
     model_cpu.eval()
     dummy = torch.zeros(1, 512, dtype=torch.long)
     onnx_path = output_dir / "layer2b_best.onnx"
+    print("[retrain] Exporting Layer 2B ONNX...", flush=True)
+
     torch.onnx.export(
         model_cpu,
         dummy,
@@ -325,6 +372,8 @@ def fine_tune_l2b(
 
     session = ort.InferenceSession(str(onnx_path))
     session.run(None, {"token_ids": dummy.numpy()})
+
+    print(f"[retrain] Layer 2B artifacts ready: {onnx_path}", flush=True)
 
     return {
         "baseline_val_macro_f1": baseline_f1,
