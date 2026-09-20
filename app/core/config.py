@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     RETRAIN_BASE_CHECKPOINT: Path = Path(
         "ml/retraining_artifacts/base/layer2b_bigru_checkpoint.pt"
     )
+    # Candidate checkpoints promoted by local retraining are written here so
+    # the frozen baseline above is never overwritten.
+    RETRAIN_DEPLOYED_CHECKPOINT: Path = Path(
+        "ml/retraining_artifacts/deployed/layer2b_bigru_checkpoint.pt"
+    )
     RETRAIN_BASE_TRAIN_X: Path = Path(
         "ml/retraining_artifacts/base/l2b_train_X_tokens.npy"
     )
